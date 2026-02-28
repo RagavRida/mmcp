@@ -1,0 +1,44 @@
+{
+  "name": "@mmcp/core",
+  "version": "0.1.0",
+  "description": "Multiple Model Context Protocol — orchestrate AI models as a coordinated DAG",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "node --experimental-vm-modules node_modules/.bin/jest --testPathPattern=tests/",
+    "lint": "tsc --noEmit",
+    "example:specialization": "ts-node examples/specialization.ts",
+    "example:parallel": "ts-node examples/parallel.ts",
+    "example:verify": "ts-node examples/verify.ts",
+    "example:openrouter": "ts-node examples/openrouter.ts",
+    "example:cross-vendor": "ts-node examples/cross_vendor.ts",
+    "example:legal-review": "ts-node examples/legal_review.ts",
+    "example:showcase": "ts-node examples/showcase.ts"
+  },
+  "keywords": [
+    "mmcp",
+    "multi-agent",
+    "llm",
+    "orchestration",
+    "dag",
+    "context-protocol"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "uuid": "^9.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.0",
+    "@types/uuid": "^9.0.0",
+    "@types/node": "^20.0.0",
+    "jest": "^29.0.0",
+    "@jest/globals": "^29.0.0",
+    "ts-jest": "^29.0.0",
+    "ts-node": "^10.9.0"
+  },
+  "jest": {
+    "preset": "ts-jest",
+    "testEnvironment": "node"
+  }
+}
