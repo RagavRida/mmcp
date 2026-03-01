@@ -14,7 +14,9 @@
     "example:openrouter": "ts-node -r dotenv/config examples/openrouter.ts",
     "example:cross-vendor": "ts-node -r dotenv/config examples/cross_vendor.ts",
     "example:legal-review": "ts-node -r dotenv/config examples/legal_review.ts",
-    "example:showcase": "ts-node -r dotenv/config examples/showcase.ts"
+    "example:showcase": "ts-node -r dotenv/config examples/showcase.ts",
+    "example:shared-context": "ts-node -r dotenv/config examples/shared_context.ts",
+    "example:skills-demo": "ts-node -r dotenv/config examples/skills_demo.ts"
   },
   "keywords": [
     "mmcp",
@@ -30,6 +32,7 @@
   },
   "devDependencies": {
     "@jest/globals": "^29.0.0",
+    "@types/jest": "^30.0.0",
     "@types/node": "^20.0.0",
     "@types/uuid": "^9.0.0",
     "dotenv": "^17.3.1",

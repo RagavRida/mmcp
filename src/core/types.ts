@@ -43,6 +43,10 @@ export interface ContextEnvelope {
   // Routing
   model: string;                 // assigned model id
   role: string;                  // semantic role: architect, coder, verifier...
+  required_skills?: string[];    // skills this node needs
+  matched_skills?: string[];     // skills the assigned model has
+  missing_skills?: string[];     // skills required but not matched
+  skill_score?: number;          // 0-1 match quality
 
   // Structure
   branch_type: BranchType;
@@ -181,4 +185,13 @@ export interface MMCPRunResult {
   duration_ms: number;
   success: boolean;
   failed_nodes: string[];
+  skill_report?: {
+    [ctx_id: string]: {
+      required: string[];
+      matched: string[];
+      missing: string[];
+      model_chosen: string;
+      reason: string;
+    };
+  };
 }

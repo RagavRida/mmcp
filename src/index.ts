@@ -1,22 +1,32 @@
 import { ContextEnvelope, MMCPRouter, MMCPStore, MMCPRunResult } from "./core/types";
 import { createContext, buildHistory, parentsReady } from "./core/context";
 import { MemoryStore } from "./store/memory";
+import { SharedContextStore } from "./store/shared";
 import { AdapterType, getAdapter } from "./core/adapter";
 import { MMCPObserver } from "./observability/observer";
-import { fork, merge, handoff, shard, verify } from "./operations/index";
+import { fork, merge, handoff, shard, verify, forkBySkill, verifyWithSkills } from "./operations/index";
+import { SkillRegistry, defaultSkillRegistry, Skill, ModelSkillProfile } from "./skills/registry";
+import { SkillAwareRouter, SkillGapDetector, RoutingStrategy } from "./routing/skill_router";
 
-export { fork, merge, handoff, shard, verify };
+export { fork, merge, handoff, shard, verify, forkBySkill, verifyWithSkills };
 export { createContext, buildHistory } from "./core/context";
 export { RoleBasedRouter, ConfidenceEscalatingRouter, CostOptimizedRouter } from "./routing/router";
 export { MemoryStore } from "./store/memory";
+export { SharedContextStore } from "./store/shared";
+export type { SharedContextEntry } from "./store/shared";
 export { MMCPObserver } from "./observability/observer";
+export { SkillRegistry, defaultSkillRegistry } from "./skills/registry";
+export { SkillAwareRouter, SkillGapDetector } from "./routing/skill_router";
 export * from "./core/types";
 
 // ── Orchestrator Config ───────────────────────────────────────────────────────
 
 export interface OrchestratorConfig {
-  router: MMCPRouter;
+  router?: MMCPRouter;
+  skillRegistry?: SkillRegistry;
+  routingStrategy?: RoutingStrategy;
   store?: MMCPStore;
+  shared?: SharedContextStore;
   adapter?: AdapterType;
   observer?: MMCPObserver;
   timeoutMs?: number;
@@ -30,11 +40,28 @@ export class MMCPOrchestrator {
   private store: MMCPStore;
   private adapter: ReturnType<typeof getAdapter>;
   private observer: MMCPObserver;
+  /** Shared key-value store accessible to all nodes in the pipeline. */
+  readonly shared: SharedContextStore;
 
   constructor(private config: OrchestratorConfig) {
     this.store = config.store ?? new MemoryStore();
+    this.shared = config.shared ?? new SharedContextStore();
     this.adapter = getAdapter(config.adapter ?? "anthropic");
     this.observer = config.observer ?? new MMCPObserver();
+
+    if (!this.config.router) {
+      if (this.config.skillRegistry) {
+        this.config.router = new SkillAwareRouter(
+          this.config.skillRegistry,
+          this.config.routingStrategy ?? "cost_optimized",
+          "claude-haiku-4-5-20251001",
+          undefined,
+          process.env.ANTHROPIC_API_KEY
+        );
+      } else {
+        throw new Error("Must provide either 'router' or 'skillRegistry' in OrchestratorConfig");
+      }
+    }
   }
 
   // ── Main entry point ──────────────────────────────────────────────────────
@@ -118,15 +145,27 @@ export class MMCPOrchestrator {
       this.observer.emit("mmcp.context.started", { role: ctx.role, model: ctx.model }, ctx.id);
 
       try {
-        const assignment = this.config.router.route(ctx);
+        const assignment = this.config.router!.route(ctx);
 
         // Sync model from router → context so result.dag reflects actual model used
         ctx.model = assignment.model_id;
 
+        // Inject shared context snapshot into system_prompt
+        const snapshot = this.shared.snapshot();
+        const sharedBlock = Object.keys(snapshot).length > 0
+          ? `\n\nSHARED CONTEXT (read-only snapshot):\n${JSON.stringify(snapshot, null, 2)}`
+          : "";
+        const injectedAssignment = sharedBlock
+          ? { ...assignment, system_prompt: (assignment.system_prompt ?? "") + sharedBlock }
+          : assignment;
+
+        // Emit read event if context reads from shared store
+        this.observer.emit("mmcp.shared.read" as any, { key: "*", author_ctx_id: ctx.id }, ctx.id);
+
         // Apply timeout
         const timeoutMs = this.config.timeoutMs ?? 60000;
         const result = await Promise.race([
-          this.adapter(assignment, ctx),
+          this.adapter(injectedAssignment, ctx),
           new Promise<never>((_, reject) =>
             setTimeout(() => reject(new Error("MMCP timeout")), timeoutMs)
           ),
@@ -144,6 +183,14 @@ export class MMCPOrchestrator {
         ctx.tokens_used = result.tokens_used;
         contextMap.set(ctx.id, ctx);
 
+        // Skill Report writing
+        const required = ctx.required_skills ?? [];
+        const matched = ctx.matched_skills ?? [];
+        const missing = ctx.missing_skills ?? [];
+        if (required.length > 0) {
+          this.shared.set(`skill_report:${ctx.id}`, { required, matched, missing, model: ctx.model }, ctx.id);
+        }
+
         this.observer.emit("mmcp.context.completed", {
           role: ctx.role,
           tokens: result.tokens_used,
@@ -152,6 +199,7 @@ export class MMCPOrchestrator {
 
       } catch (err) {
         const error = err instanceof Error ? err.message : String(err);
+        console.error("MMCPOrchestrator runNode Error:", error);
 
         if (ctx.retry_count < ctx.max_retries) {
           ctx.retry_count++;
@@ -206,7 +254,7 @@ export class MMCPOrchestrator {
   // ── Convenience builder methods ───────────────────────────────────────────
 
   root(task: string, role: string, modelOverride?: string): ContextEnvelope {
-    const assignment = this.config.router.route(
+    const assignment = this.config.router!.route(
       { role, model: modelOverride ?? "" } as ContextEnvelope
     );
     return createContext({

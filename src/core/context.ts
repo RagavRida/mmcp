@@ -17,6 +17,9 @@ export function createContext(params: {
   merge_strategy?: MergeStrategy;
   max_retries?: number;
   metadata?: Record<string, unknown>;
+  required_skills?: string[];
+  matched_skills?: string[];
+  missing_skills?: string[];
 }): ContextEnvelope {
   return {
     mmcp_version: MMCP_VERSION,
@@ -38,6 +41,9 @@ export function createContext(params: {
     tokens_used: undefined,
     created_at: new Date().toISOString(),
     metadata: params.metadata ?? {},
+    required_skills: params.required_skills,
+    matched_skills: params.matched_skills,
+    missing_skills: params.missing_skills,
   };
 }
 

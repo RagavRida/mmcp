@@ -1,5 +1,6 @@
 import { ContextEnvelope, MergeStrategy, ShardStrategy, NodeSpec } from "../core/types";
 import { createContext, buildHistory } from "../core/context";
+import { SkillRegistry } from "../skills/registry";
 
 // ── fork ──────────────────────────────────────────────────────────────────────
 // 1 → N: spawn N parallel sub-contexts from a single parent
@@ -149,6 +150,67 @@ export function verify(
     depth: producer.depth + 2,
     merge_strategy: "union",
     metadata: { verify_role: "synthesizer" },
+  });
+
+  return [challenger, synthesizer];
+}
+
+// ── forkBySkill ───────────────────────────────────────────────────────────────
+
+export function forkBySkill(
+  parent: ContextEnvelope,
+  skillGroups: Array<{ required_skills: string[], role: string }>,
+  registry: SkillRegistry
+): ContextEnvelope[] {
+  return skillGroups.map(group => {
+    const match = registry.bestModel(group.required_skills);
+    return createContext({
+      task: parent.task,
+      role: group.role,
+      model: match?.model_id ?? parent.model,
+      parent_ids: [parent.id],
+      branch_type: "fork",
+      history: buildHistory([parent], parent.task, group.role),
+      depth: parent.depth + 1,
+      required_skills: group.required_skills,
+    });
+  });
+}
+
+// ── verifyWithSkills ──────────────────────────────────────────────────────────
+
+export function verifyWithSkills(
+  producer: ContextEnvelope,
+  registry: SkillRegistry
+): [ContextEnvelope, ContextEnvelope] {
+  const challengerMatch = registry.bestModel(["fact_checking", "reasoning"]);
+  const synthesizerMatch = registry.bestModel(["reasoning", "summarization"]);
+
+  const challenger = createContext({
+    task: producer.task,
+    role: "challenger",
+    model: challengerMatch?.model_id ?? producer.model,
+    parent_ids: [producer.id],
+    branch_type: "verify",
+    history: buildHistory([producer], producer.task, "challenger"),
+    system_prompt: `You are the CHALLENGER in an MMCP verification contract. Your job is to critically review the previous output and identify flaws, edge cases, or incorrect assumptions. Be specific and constructive.`,
+    depth: producer.depth + 1,
+    metadata: { verify_role: "challenger" },
+    required_skills: ["fact_checking", "reasoning"],
+  });
+
+  const synthesizer = createContext({
+    task: producer.task,
+    role: "synthesizer",
+    model: synthesizerMatch?.model_id ?? producer.model,
+    parent_ids: [producer.id, challenger.id],
+    branch_type: "merge",
+    history: [],
+    system_prompt: `You are the SYNTHESIZER in an MMCP verification contract. You have received both the original answer and a critical challenge to it. Produce the final, balanced, correct answer.`,
+    depth: producer.depth + 2,
+    merge_strategy: "union",
+    metadata: { verify_role: "synthesizer" },
+    required_skills: ["reasoning", "summarization"],
   });
 
   return [challenger, synthesizer];
