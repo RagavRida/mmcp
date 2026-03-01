@@ -10,14 +10,14 @@ import {
 function makeOrchestrator() {
   return new MMCPOrchestrator({
     router: new RoleBasedRouter({
-      architect:  { model_id: "claude-sonnet-4-20250514" },
-      coder:      { model_id: "claude-sonnet-4-20250514" },
-      verifier:   { model_id: "claude-sonnet-4-20250514" },
+      architect: { model_id: "claude-sonnet-4-20250514" },
+      coder: { model_id: "claude-sonnet-4-20250514" },
+      verifier: { model_id: "claude-sonnet-4-20250514" },
       summarizer: { model_id: "claude-sonnet-4-20250514" },
       challenger: { model_id: "claude-sonnet-4-20250514" },
-      synthesizer:{ model_id: "claude-sonnet-4-20250514" },
-      reasoner:   { model_id: "claude-sonnet-4-20250514" },
-      orchestrator:{ model_id: "claude-sonnet-4-20250514" },
+      synthesizer: { model_id: "claude-sonnet-4-20250514" },
+      reasoner: { model_id: "claude-sonnet-4-20250514" },
+      orchestrator: { model_id: "claude-sonnet-4-20250514" },
     }),
     store: new MemoryStore(),
     adapter: "mock",
@@ -29,7 +29,7 @@ function makeOrchestrator() {
 describe("ContextEnvelope", () => {
   it("creates a context with correct defaults", () => {
     const ctx = createContext({ task: "test", role: "architect", model: "claude" });
-    expect(ctx.mmcp_version).toBe("0.1");
+    expect(ctx.mmcp_version).toBe("1.0");
     expect(ctx.status).toBe("pending");
     expect(ctx.parent_ids).toEqual([]);
     expect(ctx.children).toEqual([]);

@@ -2,7 +2,7 @@
 // MMCP Core Types  |  Multiple Model Context Protocol v0.1
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const MMCP_VERSION = "0.1" as const;
+export const MMCP_VERSION = "1.0" as const;
 
 // ── Branch Types ─────────────────────────────────────────────────────────────
 
@@ -194,4 +194,25 @@ export interface MMCPRunResult {
       reason: string;
     };
   };
+  wire_dag?: import("../wire/format").WireDAG;
+  compliance_report?: import("../wire/format").DAGComplianceReport;
+  cost_breakdown?: CostBreakdown;
+}
+
+// ── Cost Breakdown ───────────────────────────────────────────────────────────
+
+export interface CostBreakdown {
+  total_cost_usd: number;
+  by_node: Array<{
+    ctx_id: string;
+    role: string;
+    model: string;
+    input_tokens: number;
+    output_tokens: number;
+    cost_usd: number;
+  }>;
+  by_vendor: Record<string, number>;
+  by_model: Record<string, number>;
+  cheapest_node: string;
+  most_expensive_node: string;
 }

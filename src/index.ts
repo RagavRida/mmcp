@@ -1,4 +1,4 @@
-import { ContextEnvelope, MMCPRouter, MMCPStore, MMCPRunResult } from "./core/types";
+import { ContextEnvelope, MMCPRouter, MMCPStore, MMCPRunResult, CostBreakdown } from "./core/types";
 import { createContext, buildHistory, parentsReady } from "./core/context";
 import { MemoryStore } from "./store/memory";
 import { SharedContextStore } from "./store/shared";
@@ -7,6 +7,14 @@ import { MMCPObserver } from "./observability/observer";
 import { fork, merge, handoff, shard, verify, forkBySkill, verifyWithSkills } from "./operations/index";
 import { SkillRegistry, defaultSkillRegistry, Skill, ModelSkillProfile } from "./skills/registry";
 import { SkillAwareRouter, SkillGapDetector, RoutingStrategy } from "./routing/skill_router";
+import { MMCPWireFormat, WireDAG, MODEL_PRICING } from "./wire/format";
+import { AdapterRegistry, VendorAdapter, AdapterResult as VendorAdapterResult, MMCPAdapterError } from "./adapters/registry";
+import { AnthropicAdapter } from "./adapters/anthropic";
+import { OpenAIAdapter } from "./adapters/openai";
+import { OpenRouterAdapter } from "./adapters/openrouter";
+import { GoogleAdapter } from "./adapters/google";
+import { MMCPRegistry } from "./registry/index";
+import { MMCPComplianceSuite } from "./compliance/suite";
 
 export { fork, merge, handoff, shard, verify, forkBySkill, verifyWithSkills };
 export { createContext, buildHistory } from "./core/context";
@@ -17,6 +25,18 @@ export type { SharedContextEntry } from "./store/shared";
 export { MMCPObserver } from "./observability/observer";
 export { SkillRegistry, defaultSkillRegistry } from "./skills/registry";
 export { SkillAwareRouter, SkillGapDetector } from "./routing/skill_router";
+export { MMCPWireFormat, MODEL_PRICING } from "./wire/format";
+export type { WireEnvelope, WireDAG, WireMessage, WireCompliance, DAGComplianceReport, AuditChainEntry, ValidationResult } from "./wire/format";
+export { AdapterRegistry, MMCPAdapterError } from "./adapters/registry";
+export type { VendorAdapter, AdapterResult as VendorAdapterResult } from "./adapters/registry";
+export { AnthropicAdapter } from "./adapters/anthropic";
+export { OpenAIAdapter } from "./adapters/openai";
+export { OpenRouterAdapter } from "./adapters/openrouter";
+export { GoogleAdapter } from "./adapters/google";
+export { MMCPRegistry } from "./registry/index";
+export type { MMCPRegistryEntry, PipelineSchema } from "./registry/index";
+export { MMCPComplianceSuite } from "./compliance/suite";
+export type { ComplianceReport, TestResult } from "./compliance/suite";
 export * from "./core/types";
 
 // ── Orchestrator Config ───────────────────────────────────────────────────────
@@ -28,10 +48,13 @@ export interface OrchestratorConfig {
   store?: MMCPStore;
   shared?: SharedContextStore;
   adapter?: AdapterType;
+  adapterRegistry?: AdapterRegistry;
   observer?: MMCPObserver;
   timeoutMs?: number;
   maxRetries?: number;
   confidenceThreshold?: number;
+  pipeline_id?: string;
+  regulation_tags?: string[];
 }
 
 // ── MMCP Orchestrator ─────────────────────────────────────────────────────────
@@ -40,6 +63,8 @@ export class MMCPOrchestrator {
   private store: MMCPStore;
   private adapter: ReturnType<typeof getAdapter>;
   private observer: MMCPObserver;
+  private _registry: MMCPRegistry;
+  private wireFormat = new MMCPWireFormat();
   /** Shared key-value store accessible to all nodes in the pipeline. */
   readonly shared: SharedContextStore;
 
@@ -48,6 +73,7 @@ export class MMCPOrchestrator {
     this.shared = config.shared ?? new SharedContextStore();
     this.adapter = getAdapter(config.adapter ?? "anthropic");
     this.observer = config.observer ?? new MMCPObserver();
+    this._registry = new MMCPRegistry();
 
     if (!this.config.router) {
       if (this.config.skillRegistry) {
@@ -115,6 +141,88 @@ export class MMCPOrchestrator {
       duration_ms: duration,
       success: failedNodes.length === 0,
       failed_nodes: failedNodes,
+      ...this.buildPostExecutionArtifacts(contexts),
+    };
+  }
+
+  /** Registry accessor */
+  get registry(): MMCPRegistry {
+    return this._registry;
+  }
+
+  // ── Post-execution artifacts ──────────────────────────────────────────────
+
+  private buildPostExecutionArtifacts(contexts: ContextEnvelope[]): {
+    wire_dag: WireDAG;
+    compliance_report: import("./wire/format").DAGComplianceReport;
+    cost_breakdown: CostBreakdown;
+  } {
+    const wireDag = this.wireFormat.serializeDAG(contexts, {
+      skillReport: undefined,
+      sharedSnapshot: this.shared.snapshot(),
+      regulationTags: this.config.regulation_tags,
+    });
+
+    const costBreakdown = this.buildCostBreakdown(contexts);
+
+    // Auto-record run if pipeline_id is set
+    if (this.config.pipeline_id) {
+      this._registry.recordRun(this.config.pipeline_id, {
+        output: "",
+        dag: contexts,
+        root_id: contexts[0]?.id ?? "",
+        total_nodes: contexts.length,
+        total_tokens: contexts.reduce((s, c) => s + (c.tokens_used ?? 0), 0),
+        duration_ms: 0,
+        success: true,
+        failed_nodes: [],
+        cost_breakdown: costBreakdown,
+      });
+    }
+
+    return {
+      wire_dag: wireDag,
+      compliance_report: wireDag.compliance_report,
+      cost_breakdown: costBreakdown,
+    };
+  }
+
+  private buildCostBreakdown(contexts: ContextEnvelope[]): CostBreakdown {
+    const byNode: CostBreakdown["by_node"] = [];
+    const byVendor: Record<string, number> = {};
+    const byModel: Record<string, number> = {};
+    let cheapestCost = Infinity, cheapestId = "";
+    let expensiveCost = -1, expensiveId = "";
+
+    for (const ctx of contexts) {
+      const inputTokens = (ctx as any).input_tokens ?? Math.round((ctx.tokens_used ?? 0) * 0.6);
+      const outputTokens = (ctx as any).output_tokens ?? ((ctx.tokens_used ?? 0) - inputTokens);
+      const cost = MMCPWireFormat.calculateCost(ctx.model, inputTokens, outputTokens);
+
+      byNode.push({
+        ctx_id: ctx.id,
+        role: ctx.role,
+        model: ctx.model,
+        input_tokens: inputTokens,
+        output_tokens: outputTokens,
+        cost_usd: cost,
+      });
+
+      const vendor = AdapterRegistry.detectVendor(ctx.model);
+      byVendor[vendor] = (byVendor[vendor] ?? 0) + cost;
+      byModel[ctx.model] = (byModel[ctx.model] ?? 0) + cost;
+
+      if (cost < cheapestCost) { cheapestCost = cost; cheapestId = ctx.id; }
+      if (cost > expensiveCost) { expensiveCost = cost; expensiveId = ctx.id; }
+    }
+
+    return {
+      total_cost_usd: byNode.reduce((s, n) => s + n.cost_usd, 0),
+      by_node: byNode,
+      by_vendor: byVendor,
+      by_model: byModel,
+      cheapest_node: cheapestId,
+      most_expensive_node: expensiveId,
     };
   }
 

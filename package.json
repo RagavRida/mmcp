@@ -16,7 +16,8 @@
     "example:legal-review": "ts-node -r dotenv/config examples/legal_review.ts",
     "example:showcase": "ts-node -r dotenv/config examples/showcase.ts",
     "example:shared-context": "ts-node -r dotenv/config examples/shared_context.ts",
-    "example:skills-demo": "ts-node -r dotenv/config examples/skills_demo.ts"
+    "example:skills-demo": "ts-node -r dotenv/config examples/skills_demo.ts",
+    "example:v1-demo": "ts-node -r dotenv/config examples/v1_demo.ts"
   },
   "keywords": [
     "mmcp",
