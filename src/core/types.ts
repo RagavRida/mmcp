@@ -87,7 +87,7 @@ export interface Message {
 
 export interface ModelAssignment {
   model_id: string;
-  endpoint: string;
+  endpoint?: string;
   api_key?: string;
   system_prompt: string;
   max_tokens: number;

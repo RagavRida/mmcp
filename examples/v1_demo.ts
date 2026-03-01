@@ -21,8 +21,14 @@ import {
     MMCPComplianceSuite,
 } from "../src/index";
 
-const HAIKU = "claude-haiku-4-5-20251001";
-const SONNET = "claude-sonnet-4-20250514";
+const hasAnthropicKey = !!process.env.ANTHROPIC_API_KEY;
+const ADAPTER = hasAnthropicKey ? "anthropic" : "openrouter";
+const HAIKU = hasAnthropicKey
+    ? "claude-haiku-4-5-20251001"
+    : "anthropic/claude-3.5-haiku";
+const SONNET = hasAnthropicKey
+    ? "claude-sonnet-4-20250514"
+    : "anthropic/claude-3.5-sonnet";
 
 // ══════════════════════════════════════════════════════════════════════════════
 // DEMO 1 — Full v1.0 Pipeline with Compliance Artifact
@@ -42,7 +48,7 @@ async function demo1() {
             summarizer: { model_id: HAIKU },
         }),
         store: new MemoryStore(),
-        adapter: "anthropic",
+        adapter: ADAPTER as any,
         regulation_tags: ["SOC2", "GDPR"],
         pipeline_id: "mmcp://pipelines/code-review",
     });
@@ -139,7 +145,7 @@ async function demo2() {
             summarizer: { model_id: HAIKU },
         }),
         store: new MemoryStore(),
-        adapter: "anthropic",
+        adapter: ADAPTER as any,
     });
 
     const root = orc.root("What are the three laws of robotics?", "analyst");
@@ -168,7 +174,7 @@ async function demo3() {
             summarizer: { model_id: HAIKU },
         }),
         store: new MemoryStore(),
-        adapter: "anthropic",
+        adapter: ADAPTER as any,
         pipeline_id: "mmcp://pipelines/code-review",
     });
 

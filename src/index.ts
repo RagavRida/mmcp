@@ -132,6 +132,23 @@ export class MMCPOrchestrator {
       failed: failedNodes.length,
     });
 
+    // Build skill_report from shared context
+    const skillReport: MMCPRunResult["skill_report"] = {};
+    for (const ctx of contexts) {
+      const entry = this.shared.latestEntry(`skill_report:${ctx.id}`);
+      if (entry) {
+        const val = entry.value as { required: string[]; matched: string[]; missing: string[]; model: string };
+        skillReport[ctx.id] = {
+          required: val.required,
+          matched: val.matched,
+          missing: val.missing,
+          model_chosen: val.model,
+          reason: val.missing.length > 0 ? "Partial match" : "Full match",
+        };
+      }
+    }
+    const hasSkillReport = Object.keys(skillReport).length > 0;
+
     return {
       output: finalOutput,
       dag: contexts,
@@ -141,6 +158,7 @@ export class MMCPOrchestrator {
       duration_ms: duration,
       success: failedNodes.length === 0,
       failed_nodes: failedNodes,
+      ...(hasSkillReport ? { skill_report: skillReport } : {}),
       ...this.buildPostExecutionArtifacts(contexts),
     };
   }

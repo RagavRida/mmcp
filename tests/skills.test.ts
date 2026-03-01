@@ -134,42 +134,40 @@ describe("Skill Gap Detection", () => {
     });
 });
 
-const hasKey = !!process.env.ANTHROPIC_API_KEY;
-const describeIntegration = hasKey ? describe : describe.skip;
+const hasAnthropicKey = !!process.env.ANTHROPIC_API_KEY;
+const hasOpenRouterKey = !!process.env.OPENROUTER_API_KEY;
+const hasAnyKey = hasAnthropicKey || hasOpenRouterKey;
+const describeIntegration = hasAnyKey ? describe : describe.skip;
+
+// Pick adapter + model format based on available key
+const testAdapterType = hasAnthropicKey ? undefined : "openrouter";
+const testModelId = hasAnthropicKey
+    ? "claude-haiku-4-5-20251001"
+    : "anthropic/claude-3.5-haiku";
 
 describeIntegration("Integration (Real API) with Skill Registry", () => {
     // Use a timeout of 30 seconds for real API calls
     jest.setTimeout(30000);
 
     it("Pipeline with required_skills runs correctly and records skill_report", async () => {
-        // We enforce haiku for cost reasons in tests instead of the default models, but we'll use 
-        // defaultSkillRegistry models and override them to all map to `claude-haiku-4-5-20251001` or 
-        // just rely on them as strings and Anthropic adapter parsing them.
-        // Actually, Anthropic Adapter requires valid Anthropic model strings.
-        // Currently, defaultSkillRegistry specifies claude-haiku-4-5-20251001 which is valid.
-
-        // Let's create an orchestrator with default registry
-        const orc = new MMCPOrchestrator({
-            skillRegistry: defaultSkillRegistry,
-            routingStrategy: "best_match", // it will pick sonnet or opus if we ask for reasonaing
-            // to avoid using sonnet/opus and incurring cost, let's create a custom registry for tests
-        });
-
         const testRegistry = new SkillRegistry();
         testRegistry.registerModel({
-            model_id: "claude-haiku-4-5-20251001",
+            model_id: testModelId,
             skills: ["fast_reasoning"],
             cost_per_1k_input: 0.25,
             cost_per_1k_output: 1.25,
             context_window: 200000,
             strengths: ["speed"],
-            vendor: "anthropic"
+            vendor: hasAnthropicKey ? "anthropic" : "openrouter"
         });
 
-        const testOrc = new MMCPOrchestrator({
+        const orcConfig: Record<string, unknown> = {
             skillRegistry: testRegistry,
-            routingStrategy: "best_match"
-        });
+            routingStrategy: "best_match",
+        };
+        if (testAdapterType) orcConfig.adapter = testAdapterType;
+
+        const testOrc = new MMCPOrchestrator(orcConfig as any);
 
         const root = testOrc.root("Return exactly 'HELLO SKILLS'", "greeter");
         root.required_skills = ["fast_reasoning"];
@@ -181,7 +179,7 @@ describeIntegration("Integration (Real API) with Skill Registry", () => {
         // Check skill_report
         expect(res.skill_report).toBeDefined();
         if (res.skill_report) {
-            expect(res.skill_report[root.id].model_chosen).toBe("claude-haiku-4-5-20251001");
+            expect(res.skill_report[root.id].model_chosen).toBe(testModelId);
             expect(res.skill_report[root.id].matched).toContain("fast_reasoning");
         }
 
@@ -189,7 +187,7 @@ describeIntegration("Integration (Real API) with Skill Registry", () => {
         const hist = testOrc.shared.history();
         const writeEvent = hist.find(e => e.key === `skill_report:${root.id}`);
         expect(writeEvent).toBeDefined();
-        expect((writeEvent?.value as any).model).toBe("claude-haiku-4-5-20251001");
+        expect((writeEvent?.value as any).model).toBe(testModelId);
     });
 
     it("forkBySkill creates correct nodes with right models", () => {

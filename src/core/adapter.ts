@@ -28,7 +28,7 @@ export async function callAnthropic(
     messages,
   };
 
-  const res = await fetch(assignment.endpoint, {
+  const res = await fetch(assignment.endpoint || "https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

@@ -11,12 +11,12 @@ export class SkillAwareRouter implements MMCPRouter {
         private registry: SkillRegistry,
         private strategy: RoutingStrategy,
         private fallback_model: string,
-        private endpoint: string = "https://api.anthropic.com/v1/messages",
+        private endpoint?: string,
         private api_key?: string
     ) {
         this.fallbackRouter = new RoleBasedRouter({}, {
             model_id: this.fallback_model,
-            endpoint: this.endpoint,
+            endpoint: this.endpoint ?? "https://api.anthropic.com/v1/messages",
             api_key: this.api_key,
             system_prompt: `You are the required role.`,
             max_tokens: 1024
