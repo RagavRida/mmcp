@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "mmcp-core"
+version = "1.0.0"
+description = "Multiple Model Context Protocol — orchestrate AI models as a coordinated DAG"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.11"
+authors = [
+    { name = "Raghavendra Machikatla" },
+]
+keywords = ["mmcp", "multi-agent", "llm", "orchestration", "dag", "audit", "compliance"]
+dependencies = [
+    "httpx>=0.27.0",
+]
+
+[project.optional-dependencies]
+langchain = [
+    "langchain-core>=0.2.0",
+    "langgraph>=0.1.0",
+]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+]
+all = [
+    "mmcp-core[langchain,dev]",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+
+[tool.setuptools.packages.find]
+include = ["mmcp_core*", "langchain_mmcp*"]
+
+[project.urls]
+Homepage = "https://github.com/RagavRida/mmcp"
+Repository = "https://github.com/RagavRida/mmcp"
+Documentation = "https://github.com/RagavRida/mmcp#readme"
