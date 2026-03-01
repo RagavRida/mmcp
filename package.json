@@ -1,9 +1,24 @@
 {
   "name": "@mmcp/core",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Multiple Model Context Protocol — orchestrate AI models as a coordinated DAG",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "files": [
+    "dist/",
+    "LICENSE",
+    "README.md",
+    "CHANGELOG.md"
+  ],
+  "author": "Raghavendra Machikatla",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/RagavRida/mmcp.git"
+  },
+  "homepage": "https://github.com/RagavRida/mmcp#readme",
+  "bugs": {
+    "url": "https://github.com/RagavRida/mmcp/issues"
+  },
   "scripts": {
     "build": "tsc",
     "test": "node --experimental-vm-modules node_modules/.bin/jest --testPathPattern=tests/",
