@@ -4,6 +4,8 @@
 // Every write is immutable — reads return full history or latest value.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { MMCPObserver } from "../observability/observer";
+
 export interface SharedContextEntry {
     key: string;
     value: unknown;
@@ -23,19 +25,27 @@ export class SharedContextStore {
         key: string,
         value: unknown,
         author_ctx_id: string,
-        metadata?: Record<string, unknown>
+        metadata?: Record<string, unknown>,
+        observer?: MMCPObserver
     ): SharedContextEntry {
-        const history = this.store.get(key) ?? [];
+        const entries = this.store.get(key) ?? [];
         const entry: SharedContextEntry = {
             key,
             value,
             author_ctx_id,
             timestamp: new Date().toISOString(),
-            version: history.length + 1,
+            version: entries.length + 1,
             metadata,
         };
-        history.push(entry);
-        this.store.set(key, history);
+        this.store.set(key, [...entries, entry]);
+
+        // Emit write event if observer provided
+        observer?.emit("mmcp.shared.write", {
+            key,
+            author_ctx_id,
+            version: entry.version,
+        });
+
         return entry;
     }
 

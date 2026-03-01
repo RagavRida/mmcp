@@ -484,7 +484,7 @@ export class MMCPWireFormat {
         contexts: ContextEnvelope[],
         envelopes: WireEnvelope[]
     ): DAGComplianceReport {
-        const dagId = `mmcp_dag_${uuidv4().replace(/-/g, "").slice(0, 16)}`;
+        const dagId = `mmcp_dag_${uuidv4().replace(/-/g, "")}`;
         const errors: ComplianceError[] = [];
         const warnings: ComplianceWarning[] = [];
 

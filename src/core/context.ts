@@ -23,7 +23,7 @@ export function createContext(params: {
 }): ContextEnvelope {
   return {
     mmcp_version: MMCP_VERSION,
-    id: `ctx_${uuidv4().replace(/-/g, "").slice(0, 10)}`,
+    id: `ctx_${uuidv4().replace(/-/g, "")}`,
     parent_ids: params.parent_ids ?? [],
     children: [],
     task: params.task,
@@ -82,16 +82,30 @@ export function buildHistory(
 export function topologicalSort(contexts: ContextEnvelope[]): ContextEnvelope[] {
   const map = new Map(contexts.map(c => [c.id, c]));
   const visited = new Set<string>();
+  const visiting = new Set<string>();   // tracks current DFS path
   const result: ContextEnvelope[] = [];
 
   function visit(id: string) {
     if (visited.has(id)) return;
+
+    // If we see a node we're currently visiting — it's a cycle
+    if (visiting.has(id)) {
+      throw new Error(
+        `MMCP cycle detected: context ${id} is its own ancestor. ` +
+        `DAG must be acyclic. Check parent_ids for circular references.`
+      );
+    }
+
     const ctx = map.get(id);
     if (!ctx) return;
-    // Visit parents first
+
+    visiting.add(id);         // mark as in-progress
+
     for (const pid of ctx.parent_ids) {
       visit(pid);
     }
+
+    visiting.delete(id);      // done with this path
     visited.add(id);
     result.push(ctx);
   }

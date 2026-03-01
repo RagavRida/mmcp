@@ -120,7 +120,9 @@ export type MMCPEventType =
   | "mmcp.context.completed"
   | "mmcp.context.failed"
   | "mmcp.dag.started"
-  | "mmcp.dag.completed";
+  | "mmcp.dag.completed"
+  | "mmcp.shared.write"
+  | "mmcp.shared.read";
 
 export interface MMCPEvent {
   type: MMCPEventType;
@@ -185,6 +187,7 @@ export interface MMCPRunResult {
   duration_ms: number;
   success: boolean;
   failed_nodes: string[];
+  skipped_nodes?: string[];
   skill_report?: {
     [ctx_id: string]: {
       required: string[];

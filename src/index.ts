@@ -1,5 +1,5 @@
 import { ContextEnvelope, MMCPRouter, MMCPStore, MMCPRunResult, CostBreakdown } from "./core/types";
-import { createContext, buildHistory, parentsReady } from "./core/context";
+import { createContext, buildHistory, parentsReady, topologicalSort } from "./core/context";
 import { MemoryStore } from "./store/memory";
 import { SharedContextStore } from "./store/shared";
 import { AdapterType, getAdapter } from "./core/adapter";
@@ -107,10 +107,11 @@ export class MMCPOrchestrator {
     this.observer.emit("mmcp.dag.started", { root_ids: rootIds, total_nodes: contexts.length });
 
     const failedNodes: string[] = [];
+    const skippedNodes: string[] = [];
     const totalTokens = { value: 0 };
 
     // Execute via parallel-aware topological processing
-    await this.executeDAG(contexts, contextMap, failedNodes, totalTokens);
+    await this.executeDAG(contexts, contextMap, failedNodes, skippedNodes, totalTokens);
 
     // Collect leaf outputs
     const leafContexts = contexts.filter(c => c.children.length === 0);
@@ -158,6 +159,7 @@ export class MMCPOrchestrator {
       duration_ms: duration,
       success: failedNodes.length === 0,
       failed_nodes: failedNodes,
+      ...(skippedNodes.length > 0 ? { skipped_nodes: skippedNodes } : {}),
       ...(hasSkillReport ? { skill_report: skillReport } : {}),
       ...this.buildPostExecutionArtifacts(contexts),
     };
@@ -250,8 +252,12 @@ export class MMCPOrchestrator {
     allContexts: ContextEnvelope[],
     contextMap: Map<string, ContextEnvelope>,
     failedNodes: string[],
+    skippedNodes: string[],
     totalTokens: { value: number }
   ): Promise<void> {
+    // Validate DAG structure first — throws on cycle
+    topologicalSort(allContexts);
+
     const pending = new Set(allContexts.map(c => c.id));
     const running = new Set<string>();
     const completed = new Set<string>();
@@ -286,7 +292,7 @@ export class MMCPOrchestrator {
           : assignment;
 
         // Emit read event if context reads from shared store
-        this.observer.emit("mmcp.shared.read" as any, { key: "*", author_ctx_id: ctx.id }, ctx.id);
+        this.observer.emit("mmcp.shared.read", { key: "*", author_ctx_id: ctx.id }, ctx.id);
 
         // Apply timeout
         const timeoutMs = this.config.timeoutMs ?? 60000;
@@ -314,7 +320,7 @@ export class MMCPOrchestrator {
         const matched = ctx.matched_skills ?? [];
         const missing = ctx.missing_skills ?? [];
         if (required.length > 0) {
-          this.shared.set(`skill_report:${ctx.id}`, { required, matched, missing, model: ctx.model }, ctx.id);
+          this.shared.set(`skill_report:${ctx.id}`, { required, matched, missing, model: ctx.model }, ctx.id, undefined, this.observer);
         }
 
         this.observer.emit("mmcp.context.completed", {
@@ -338,7 +344,29 @@ export class MMCPOrchestrator {
 
         await this.store.updateStatus(ctx.id, "failed", undefined, { error });
         ctx.status = "failed";
+        contextMap.set(ctx.id, ctx);
         failedNodes.push(ctx.id);
+
+        // Mark all downstream nodes as skipped immediately
+        const downstream = this.getDownstream(ctx.id, allContexts);
+        for (const downstreamId of downstream) {
+          const downCtx = contextMap.get(downstreamId);
+          if (downCtx && downCtx.status === "pending") {
+            await this.store.updateStatus(downstreamId, "skipped", undefined, {
+              error: `Skipped: upstream node ${ctx.id} (${ctx.role}) failed`,
+            });
+            downCtx.status = "skipped";
+            contextMap.set(downstreamId, downCtx);
+            pending.delete(downstreamId);
+            skippedNodes.push(downstreamId);
+
+            this.observer.emit("mmcp.context.failed", {
+              role: downCtx.role,
+              error: `skipped — upstream failure: ${ctx.id}`,
+              skipped: true,
+            }, downstreamId);
+          }
+        }
 
         this.observer.emit("mmcp.context.failed", {
           role: ctx.role,
@@ -375,6 +403,30 @@ export class MMCPOrchestrator {
         await new Promise(r => setTimeout(r, 50));
       }
     }
+  }
+
+  // ── Downstream BFS ──────────────────────────────────────────────────────
+
+  private getDownstream(
+    failedId: string,
+    allContexts: ContextEnvelope[]
+  ): string[] {
+    const downstream: string[] = [];
+    const queue = [failedId];
+    const seen = new Set<string>();
+
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      for (const ctx of allContexts) {
+        if (ctx.parent_ids.includes(current) && !seen.has(ctx.id)) {
+          seen.add(ctx.id);
+          downstream.push(ctx.id);
+          queue.push(ctx.id);
+        }
+      }
+    }
+
+    return downstream;
   }
 
   // ── Convenience builder methods ───────────────────────────────────────────
