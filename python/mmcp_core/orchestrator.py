@@ -10,7 +10,7 @@ from .context import create_context, build_history, topological_sort, parents_re
 from .store import MemoryStore
 from .shared import SharedContextStore
 from .observer import MMCPObserver
-from .adapter import call_anthropic
+from .adapter import call_anthropic, call_openrouter
 from .operations import fork, merge, handoff, shard, verify
 
 
@@ -22,6 +22,7 @@ class MMCPOrchestrator:
         self.observer = config.get("observer") or MMCPObserver()
         self.timeout_ms = config.get("timeout_ms", 60000)
         self.regulation_tags = config.get("regulation_tags", [])
+        self._call_model = config.get("adapter") or call_anthropic
 
     def root(
         self,
@@ -161,7 +162,7 @@ class MMCPOrchestrator:
 
             try:
                 result = await asyncio.wait_for(
-                    call_anthropic(assignment, ctx),
+                    self._call_model(assignment, ctx),
                     timeout=self.timeout_ms / 1000,
                 )
 

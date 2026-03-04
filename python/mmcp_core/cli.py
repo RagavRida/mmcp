@@ -24,6 +24,26 @@ from .store import MemoryStore
 from .shared import SharedContextStore
 from .observer import MMCPObserver
 from .wire import MMCPWireFormat
+from .adapter import call_openrouter
+
+# OpenRouter uses different model IDs than Anthropic direct
+OPENROUTER_MODEL_MAP: dict[str, str] = {
+    "claude-haiku-4-5-20251001": "anthropic/claude-3.5-haiku",
+    "claude-sonnet-4-20250514":  "anthropic/claude-sonnet-4-20250514",
+    "claude-opus-4-20250514":    "anthropic/claude-opus-4-20250514",
+}
+OPENROUTER_DEFAULT_MODEL = "anthropic/claude-3.5-haiku"
+
+
+def _resolve_model(model: str, use_openrouter: bool) -> str:
+    """Map Anthropic model IDs to OpenRouter format if needed."""
+    if not use_openrouter:
+        return model
+    if model in OPENROUTER_MODEL_MAP:
+        return OPENROUTER_MODEL_MAP[model]
+    if "/" in model:  # already in vendor/model format
+        return model
+    return f"anthropic/{model}"
 
 
 # ── Formatting helpers ──────────────────────────────────────────────────────
@@ -83,25 +103,43 @@ def _print_result(result, verbose: bool = False) -> None:
     print(output)
 
 
+def _load_env() -> None:
+    """Load .env file from cwd or parent dirs."""
+    for d in [os.getcwd(), os.path.join(os.getcwd(), "..")]:
+        env_file = os.path.join(d, ".env")
+        if os.path.exists(env_file):
+            with open(env_file) as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith("#") and "=" in line:
+                        key, _, value = line.partition("=")
+                        os.environ.setdefault(key.strip(), value.strip())
+            break
+
+
 def _make_orchestrator(
     roles: list[str],
     model: str,
     verbose: bool = False,
+    use_openrouter: bool = False,
 ) -> MMCPOrchestrator:
     observer = MMCPObserver()
     if verbose:
         observer.enable_console_logging()
 
     router_config = {role: {"model_id": model} for role in roles}
-    # Always include "orchestrator" role for parallel/shard
     router_config["orchestrator"] = {"model_id": model}
 
-    return MMCPOrchestrator({
+    config: dict = {
         "router": RoleBasedRouter(router_config),
         "store": MemoryStore(),
         "shared": SharedContextStore(),
         "observer": observer,
-    })
+    }
+    if use_openrouter:
+        config["adapter"] = call_openrouter
+
+    return MMCPOrchestrator(config)
 
 
 # ── Commands ────────────────────────────────────────────────────────────────
@@ -113,12 +151,17 @@ def cmd_chain(args: argparse.Namespace) -> None:
         print(f"{RED}Error: chain requires at least 2 roles (got {len(roles)}){RESET}")
         sys.exit(1)
 
+    use_or = getattr(args, 'openrouter', False)
+    model = _resolve_model(args.model, use_or)
+
     _banner(f"Chain: {' → '.join(roles)}")
     print(f"  Task:   {args.task}")
-    print(f"  Model:  {args.model}")
+    print(f"  Model:  {model}")
     print(f"  Roles:  {' → '.join(roles)}")
+    if use_or:
+        print(f"  Via:    OpenRouter")
 
-    orc = _make_orchestrator(roles, args.model, args.verbose)
+    orc = _make_orchestrator(roles, model, args.verbose, use_or)
     result = asyncio.run(orc.run_chain(args.task, roles))
     _print_result(result, args.verbose)
     _maybe_export(result, orc, args)
@@ -129,14 +172,19 @@ def cmd_parallel(args: argparse.Namespace) -> None:
     fork_roles = [r.strip() for r in args.fork_roles.split(",")]
     merge_role = args.merge_role
 
+    use_or = getattr(args, 'openrouter', False)
+    model = _resolve_model(args.model, use_or)
+
     _banner(f"Parallel: [{', '.join(fork_roles)}] → {merge_role}")
     print(f"  Task:       {args.task}")
-    print(f"  Model:      {args.model}")
+    print(f"  Model:      {model}")
     print(f"  Fork roles: {', '.join(fork_roles)}")
     print(f"  Merge role: {merge_role}")
+    if use_or:
+        print(f"  Via:        OpenRouter")
 
     all_roles = fork_roles + [merge_role]
-    orc = _make_orchestrator(all_roles, args.model, args.verbose)
+    orc = _make_orchestrator(all_roles, model, args.verbose, use_or)
     result = asyncio.run(orc.run_parallel(args.task, fork_roles, merge_role))
     _print_result(result, args.verbose)
     _maybe_export(result, orc, args)
@@ -144,15 +192,20 @@ def cmd_parallel(args: argparse.Namespace) -> None:
 
 def cmd_verify(args: argparse.Namespace) -> None:
     """Run producer → challenger → synthesizer verification."""
+    use_or = getattr(args, 'openrouter', False)
+    model = _resolve_model(args.model, use_or)
+
     _banner(f"Verify: {args.producer} → {args.challenger} → {args.synthesizer}")
     print(f"  Task:        {args.task}")
-    print(f"  Model:       {args.model}")
+    print(f"  Model:       {model}")
     print(f"  Producer:    {args.producer}")
     print(f"  Challenger:  {args.challenger}")
     print(f"  Synthesizer: {args.synthesizer}")
+    if use_or:
+        print(f"  Via:         OpenRouter")
 
     roles = [args.producer, args.challenger, args.synthesizer]
-    orc = _make_orchestrator(roles, args.model, args.verbose)
+    orc = _make_orchestrator(roles, model, args.verbose, use_or)
     result = asyncio.run(orc.run_verify(
         args.task, args.producer, args.challenger, args.synthesizer,
     ))
@@ -162,15 +215,20 @@ def cmd_verify(args: argparse.Namespace) -> None:
 
 def cmd_shard(args: argparse.Namespace) -> None:
     """Run sharded pipeline: split → N shards → merge."""
+    use_or = getattr(args, 'openrouter', False)
+    model = _resolve_model(args.model, use_or)
+
     _banner(f"Shard: {args.role} ×{args.shards} → {args.merge_role}")
     print(f"  Task:       {args.task}")
-    print(f"  Model:      {args.model}")
+    print(f"  Model:      {model}")
     print(f"  Shard role: {args.role}")
     print(f"  Shards:     {args.shards}")
     print(f"  Merge role: {args.merge_role}")
+    if use_or:
+        print(f"  Via:        OpenRouter")
 
     roles = [args.role, args.merge_role]
-    orc = _make_orchestrator(roles, args.model, args.verbose)
+    orc = _make_orchestrator(roles, model, args.verbose, use_or)
     result = asyncio.run(orc.run_sharded(
         args.task, args.role, args.shards, args.merge_role,
     ))
@@ -285,6 +343,8 @@ def build_parser() -> argparse.ArgumentParser:
                        help="Model ID (default: claude-haiku-4-5-20251001)")
         p.add_argument("-v", "--verbose", action="store_true",
                        help="Show full output and event logs")
+        p.add_argument("--openrouter", action="store_true",
+                       help="Use OpenRouter API instead of Anthropic direct")
         p.add_argument("-e", "--export", metavar="FILE",
                        help="Export WireDAG audit trail to JSON file")
         p.add_argument("-t", "--tags", metavar="TAGS",
@@ -350,12 +410,23 @@ def main() -> None:
         parser.print_help()
         sys.exit(0)
 
+    # Load .env file
+    _load_env()
+
     # Check API key for pipeline commands
     if args.command in ("chain", "parallel", "verify", "shard"):
-        if not os.environ.get("ANTHROPIC_API_KEY"):
-            print(f"{RED}Error: ANTHROPIC_API_KEY not set{RESET}")
-            print(f"{DIM}  export ANTHROPIC_API_KEY=sk-ant-...{RESET}")
-            sys.exit(1)
+        use_or = getattr(args, 'openrouter', False)
+        if use_or:
+            if not os.environ.get("OPENROUTER_API_KEY"):
+                print(f"{RED}Error: OPENROUTER_API_KEY not set{RESET}")
+                print(f"{DIM}  export OPENROUTER_API_KEY=sk-or-...{RESET}")
+                sys.exit(1)
+        else:
+            if not os.environ.get("ANTHROPIC_API_KEY"):
+                print(f"{RED}Error: ANTHROPIC_API_KEY not set{RESET}")
+                print(f"{DIM}  export ANTHROPIC_API_KEY=sk-ant-...{RESET}")
+                print(f"{DIM}  Or use --openrouter with OPENROUTER_API_KEY{RESET}")
+                sys.exit(1)
 
     args.func(args)
 

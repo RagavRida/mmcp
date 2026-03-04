@@ -100,3 +100,83 @@ async def call_anthropic(
             }
 
     raise ValueError("Max retries exceeded")
+
+
+OPENROUTER_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions"
+
+
+async def call_openrouter(
+    assignment: ModelAssignment,
+    context: ContextEnvelope,
+) -> dict:
+    """Call OpenRouter API (OpenAI-compatible) with retry + backoff."""
+    api_key = assignment.api_key or os.environ.get("OPENROUTER_API_KEY")
+    if not api_key:
+        raise ValueError("OPENROUTER_API_KEY not set")
+
+    messages = context.history or []
+    chat_messages: list[dict] = []
+
+    if assignment.system_prompt:
+        chat_messages.append({"role": "system", "content": assignment.system_prompt})
+
+    user_msgs = [
+        {"role": m.role, "content": m.content}
+        for m in messages
+        if m.role != "system"
+    ]
+    if not user_msgs:
+        user_msgs = [{"role": "user", "content": context.task}]
+    chat_messages.extend(user_msgs)
+
+    body = {
+        "model": assignment.model_id,
+        "max_tokens": assignment.max_tokens,
+        "temperature": assignment.temperature,
+        "messages": chat_messages,
+    }
+
+    endpoint = OPENROUTER_ENDPOINT
+    max_retries = 3
+    for attempt in range(max_retries):
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.post(
+                endpoint,
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {api_key}",
+                    "HTTP-Referer": "https://mmcp.dev",
+                    "X-Title": "MMCP Orchestrator",
+                },
+                json=body,
+            )
+
+            if response.status_code in (429, 529):
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(2 ** attempt)
+                    continue
+            elif response.status_code in (400, 401, 403):
+                raise ValueError(
+                    f"OpenRouter API error {response.status_code}: {response.text}"
+                )
+
+            response.raise_for_status()
+            data = response.json()
+
+            output = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+            usage = data.get("usage", {})
+            input_tokens = usage.get("prompt_tokens", 0)
+            output_tokens = usage.get("completion_tokens", 0)
+
+            return {
+                "output": output,
+                "input_tokens": input_tokens,
+                "output_tokens": output_tokens,
+                "tokens_used": input_tokens + output_tokens,
+                "model": data.get("model", assignment.model_id),
+                "cost_usd": calculate_cost(
+                    assignment.model_id, input_tokens, output_tokens
+                ),
+            }
+
+    raise ValueError("OpenRouter max retries exceeded")
