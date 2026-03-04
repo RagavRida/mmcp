@@ -30,8 +30,8 @@ from .adapter import call_openrouter
 # OpenRouter uses different model IDs than Anthropic direct
 OPENROUTER_MODEL_MAP: dict[str, str] = {
     "claude-haiku-4-5-20251001": "anthropic/claude-3.5-haiku",
-    "claude-sonnet-4-20250514":  "anthropic/claude-sonnet-4-20250514",
-    "claude-opus-4-20250514":    "anthropic/claude-opus-4-20250514",
+    "claude-sonnet-4-20250514":  "anthropic/claude-sonnet-4",
+    "claude-opus-4-20250514":    "anthropic/claude-opus-4",
 }
 OPENROUTER_DEFAULT_MODEL = "anthropic/claude-3.5-haiku"
 
@@ -370,7 +370,7 @@ def cmd_run(_args: argparse.Namespace) -> None:
     print(f"  {CYAN}3{RESET}  Opus      {DIM}— Most capable, slower{RESET}")
 
     model_choice = input(f"\n  {BOLD}Choose [1-3]:{RESET} ").strip() or "1"
-    model_map_or = {"1": "anthropic/claude-3.5-haiku", "2": "anthropic/claude-sonnet-4-20250514", "3": "anthropic/claude-opus-4-20250514"}
+    model_map_or = {"1": "anthropic/claude-3.5-haiku", "2": "anthropic/claude-sonnet-4", "3": "anthropic/claude-opus-4"}
     model_map_an = {"1": "claude-haiku-4-5-20251001", "2": "claude-sonnet-4-20250514", "3": "claude-opus-4-20250514"}
 
     # ── 5. Detect provider ─────────────────────────────────────────────
