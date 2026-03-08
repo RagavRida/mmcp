@@ -407,7 +407,7 @@ def cmd_run(_args: argparse.Namespace) -> None:
         orc = _make_orchestrator(all_roles, model, False, use_or)
         result = asyncio.run(orc.run_sharded(task, shard_role, n, merge_role))
 
-    _print_result(result, verbose=False)
+    _print_result(result, verbose=True)
 
     if export_path and result:
         fmt = MMCPWireFormat()
@@ -582,7 +582,7 @@ def _run_manual(task: str, _args: argparse.Namespace) -> None:
         orc = _make_orchestrator(["writer", "reviewer"], model, False, use_or)
         result = asyncio.run(orc.run_chain(task, ["writer", "reviewer"]))
 
-    _print_result(result, verbose=False)
+    _print_result(result, verbose=True)
 
     print()
     again = input(f"  {BOLD}Run another task? [y/N]:{RESET} ").strip().lower()
