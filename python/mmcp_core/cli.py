@@ -2,7 +2,11 @@
 MMCP CLI — command-line interface for the Multiple Model Context Protocol.
 
 Usage:
-    mmcp setup                               ← configure API keys
+    mmcp setup                               ← configure API keys (BYOK)
+    mmcp login                               ← login to MMCP Cloud
+    mmcp logout                              ← remove cloud credentials
+    mmcp account                             ← view usage & billing
+    mmcp run                                 ← interactive mode (smart routing)
     mmcp chain   "task" --roles architect,reviewer
     mmcp parallel "task" --fork-roles coder,analyst --merge-role summarizer
     mmcp verify  "task" --producer expert --challenger critic --synthesizer judge
@@ -26,6 +30,10 @@ from .shared import SharedContextStore
 from .observer import MMCPObserver
 from .wire import MMCPWireFormat
 from .adapter import call_openrouter
+from .cloud import (
+    call_mmcp_cloud, load_cloud_config, save_cloud_config,
+    remove_cloud_config, is_cloud_configured, DEFAULT_CLOUD_URL,
+)
 
 # OpenRouter uses different model IDs than Anthropic direct
 OPENROUTER_MODEL_MAP: dict[str, str] = {
@@ -581,6 +589,185 @@ def _run_manual(task: str, _args: argparse.Namespace) -> None:
     if again in ("y", "yes"):
         cmd_run(_args)
 
+def cmd_login(args: argparse.Namespace) -> None:
+    """Login to MMCP Cloud or create an account."""
+    _banner("MMCP Cloud Login")
+    cloud_url = getattr(args, "url", DEFAULT_CLOUD_URL)
+
+    # Check if already logged in
+    config = load_cloud_config()
+    if config and config.get("api_key"):
+        print(f"  {GREEN}Already logged in as {config.get('email', '?')}{RESET}")
+        relogin = input(f"  {BOLD}Re-login? [y/N]:{RESET} ").strip().lower()
+        if relogin not in ("y", "yes"):
+            return
+
+    print(f"\n{BOLD}Choose:{RESET}")
+    print(f"  {CYAN}1{RESET}  Login with existing account")
+    print(f"  {CYAN}2{RESET}  Create new account")
+
+    choice = input(f"\n  {BOLD}Select [1/2]:{RESET} ").strip() or "1"
+
+    email = input(f"\n  {BOLD}Email:{RESET} ").strip()
+    if not email:
+        print(f"{RED}Email required.{RESET}")
+        return
+
+    import getpass
+    password = getpass.getpass(f"  {BOLD}Password:{RESET} ")
+    if not password:
+        print(f"{RED}Password required.{RESET}")
+        return
+
+    try:
+        import httpx
+
+        if choice == "2":
+            # Register
+            if len(password) < 8:
+                print(f"{RED}Password must be at least 8 characters.{RESET}")
+                return
+
+            print(f"\n{BOLD}Creating account...{RESET}")
+            resp = httpx.post(
+                f"{cloud_url}/v1/auth/register",
+                json={"email": email, "password": password},
+                timeout=15.0,
+            )
+            if resp.status_code == 409:
+                print(f"{YELLOW}Account already exists. Trying login...{RESET}")
+                choice = "1"  # fall through to login
+            elif resp.status_code != 200:
+                print(f"{RED}Registration failed: {resp.text}{RESET}")
+                return
+            else:
+                data = resp.json()
+                save_cloud_config({
+                    "api_key": data["api_key"],
+                    "email": email,
+                    "plan": data.get("plan", "free"),
+                    "cloud_url": cloud_url,
+                })
+                print(f"\n  {GREEN}✅ Account created!{RESET}")
+                print(f"  Email:   {email}")
+                print(f"  Plan:    {data.get('plan', 'free')}")
+                print(f"  API Key: {data['api_key'][:15]}...")
+                print(f"\n  {CYAN}Run: mmcp run{RESET}")
+                return
+
+        if choice == "1":
+            # Login
+            print(f"\n{BOLD}Logging in...{RESET}")
+            resp = httpx.post(
+                f"{cloud_url}/v1/auth/login",
+                json={"email": email, "password": password},
+                timeout=15.0,
+            )
+            if resp.status_code != 200:
+                print(f"{RED}Login failed: {resp.json().get('detail', resp.text)}{RESET}")
+                return
+
+            data = resp.json()
+            save_cloud_config({
+                "api_key": data["api_key"],
+                "email": email,
+                "plan": data.get("plan", "free"),
+                "cloud_url": cloud_url,
+            })
+            print(f"\n  {GREEN}✅ Logged in!{RESET}")
+            print(f"  Email: {email}")
+            print(f"  Plan:  {data.get('plan', 'free')}")
+            print(f"\n  {CYAN}Run: mmcp run{RESET}")
+
+    except httpx.ConnectError:
+        print(f"{RED}Cannot connect to {cloud_url}{RESET}")
+        print(f"{DIM}Is the MMCP Cloud server running?{RESET}")
+        print(f"{DIM}  Start it: uvicorn mmcp_cloud.server:app --port 8765{RESET}")
+    except Exception as e:
+        print(f"{RED}Error: {e}{RESET}")
+
+
+def cmd_logout(_args: argparse.Namespace) -> None:
+    """Remove MMCP Cloud credentials."""
+    config = load_cloud_config()
+    if not config:
+        print(f"{DIM}Not logged in.{RESET}")
+        return
+
+    email = config.get("email", "?")
+    remove_cloud_config()
+    print(f"{GREEN}✓ Logged out ({email}){RESET}")
+
+
+def cmd_account(_args: argparse.Namespace) -> None:
+    """Show account usage and billing info."""
+    config = load_cloud_config()
+    if not config or not config.get("api_key"):
+        print(f"{RED}Not logged in. Run 'mmcp login' first.{RESET}")
+        return
+
+    _banner("MMCP Cloud Account")
+    cloud_url = config.get("cloud_url", DEFAULT_CLOUD_URL)
+    api_key = config["api_key"]
+
+    try:
+        import httpx
+
+        # Fetch usage
+        headers = {"Authorization": f"Bearer {api_key}"}
+
+        usage_resp = httpx.get(f"{cloud_url}/v1/account/usage", headers=headers, timeout=10.0)
+        plan_resp = httpx.get(f"{cloud_url}/v1/account/plan", headers=headers, timeout=10.0)
+
+        if usage_resp.status_code != 200 or plan_resp.status_code != 200:
+            print(f"{RED}Failed to fetch account info.{RESET}")
+            return
+
+        usage = usage_resp.json()
+        plan = plan_resp.json()
+
+        month = usage.get("this_month", {})
+        total = usage.get("all_time", {})
+
+        print(f"  Email:       {usage.get('email', '?')}")
+        print(f"  Plan:        {BOLD}{plan.get('plan_name', '?')}{RESET} (${plan.get('price_usd', 0)}/mo)")
+        print(f"  Markup:      {plan.get('markup_pct', 15)}%")
+
+        print(f"\n{BOLD}This Month:{RESET}")
+        limit = month.get("limit", 0)
+        remaining = month.get("remaining", 0)
+        runs = month.get("runs", 0)
+        limit_str = "unlimited" if limit == -1 else str(limit)
+        remaining_str = "∞" if remaining == -1 else str(remaining)
+
+        print(f"  Runs:        {runs} / {limit_str}")
+        print(f"  Remaining:   {remaining_str}")
+        print(f"  Tokens:      {month.get('tokens', 0):,}")
+        print(f"  Cost:        ${month.get('cost_usd', 0):.4f}")
+
+        print(f"\n{BOLD}All Time:{RESET}")
+        print(f"  Runs:        {total.get('runs', 0):,}")
+        print(f"  Tokens:      {total.get('tokens', 0):,}")
+        print(f"  Cost:        ${total.get('cost_usd', 0):.4f}")
+
+        # Plan comparison
+        avail = plan.get("available_plans", {})
+        if avail:
+            print(f"\n{BOLD}Available Plans:{RESET}")
+            for pid, p in avail.items():
+                current = " ← current" if pid == plan.get("plan_id") else ""
+                runs_str = "unlimited" if p["runs"] == -1 else f"{p['runs']}/mo"
+                print(f"  {CYAN}{p['name']:8s}{RESET} ${p['price']:>3}/mo  {runs_str}{DIM}{current}{RESET}")
+
+    except httpx.ConnectError:
+        print(f"{RED}Cannot connect to {cloud_url}{RESET}")
+        print(f"{DIM}Showing local config only:{RESET}")
+        print(f"  Email: {config.get('email', '?')}")
+        print(f"  Plan:  {config.get('plan', '?')}")
+    except Exception as e:
+        print(f"{RED}Error: {e}{RESET}")
+
+
 def cmd_setup(_args: argparse.Namespace) -> None:
     """Interactive setup wizard for MMCP."""
     _banner("Setup Wizard")
@@ -835,8 +1022,22 @@ def build_parser() -> argparse.ArgumentParser:
     p_run = sub.add_parser("run", help="Interactive mode (no CLI knowledge needed)")
     p_run.set_defaults(func=cmd_run)
 
+    # login
+    p_login = sub.add_parser("login", help="Login to MMCP Cloud")
+    p_login.add_argument("--url", default=DEFAULT_CLOUD_URL,
+                         help=f"Cloud API URL (default: {DEFAULT_CLOUD_URL})")
+    p_login.set_defaults(func=cmd_login)
+
+    # logout
+    p_logout = sub.add_parser("logout", help="Remove MMCP Cloud credentials")
+    p_logout.set_defaults(func=cmd_logout)
+
+    # account
+    p_account = sub.add_parser("account", help="View usage & billing")
+    p_account.set_defaults(func=cmd_account)
+
     # setup
-    p_setup = sub.add_parser("setup", help="Interactive setup wizard")
+    p_setup = sub.add_parser("setup", help="Interactive setup wizard (BYOK mode)")
     p_setup.set_defaults(func=cmd_setup)
 
     # version
@@ -864,17 +1065,26 @@ def main() -> None:
     # Check API key for pipeline commands
     if args.command in ("chain", "parallel", "verify", "shard"):
         use_or = getattr(args, 'openrouter', False)
-        if use_or:
+
+        # Auto-detect cloud mode
+        if is_cloud_configured() and not use_or:
+            # Cloud mode — no local key needed
+            pass
+        elif use_or:
             if not os.environ.get("OPENROUTER_API_KEY"):
                 print(f"{RED}Error: OPENROUTER_API_KEY not set{RESET}")
                 print(f"{DIM}  export OPENROUTER_API_KEY=sk-or-...{RESET}")
                 sys.exit(1)
         else:
             if not os.environ.get("ANTHROPIC_API_KEY"):
-                print(f"{RED}Error: ANTHROPIC_API_KEY not set{RESET}")
-                print(f"{DIM}  export ANTHROPIC_API_KEY=sk-ant-...{RESET}")
-                print(f"{DIM}  Or use --openrouter with OPENROUTER_API_KEY{RESET}")
-                sys.exit(1)
+                if is_cloud_configured():
+                    pass  # will use cloud
+                else:
+                    print(f"{RED}Error: No API key configured{RESET}")
+                    print(f"{DIM}  Option 1: mmcp login        (MMCP Cloud){RESET}")
+                    print(f"{DIM}  Option 2: mmcp setup        (Bring Your Own Key){RESET}")
+                    print(f"{DIM}  Option 3: --openrouter flag  (with OPENROUTER_API_KEY){RESET}")
+                    sys.exit(1)
 
     args.func(args)
 
