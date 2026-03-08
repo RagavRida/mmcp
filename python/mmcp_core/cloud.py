@@ -14,7 +14,7 @@ import httpx
 from .types import ModelAssignment, ContextEnvelope
 
 CONFIG_PATH = Path.home() / ".mmcp" / "config.json"
-DEFAULT_CLOUD_URL = "https://api.mmcp.dev"
+DEFAULT_CLOUD_URL = "https://mmcp.up.railway.app"
 
 
 def load_cloud_config() -> dict | None:
