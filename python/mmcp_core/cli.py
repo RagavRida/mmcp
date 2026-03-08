@@ -299,81 +299,52 @@ def cmd_audit(args: argparse.Namespace) -> None:
 
 
 def cmd_run(_args: argparse.Namespace) -> None:
-    """Interactive prompt-based mode for non-developers."""
+    """Interactive prompt-based mode for non-developers with smart routing."""
     _load_env()
     _banner("Interactive Mode")
     print(f"  {DIM}Answer the prompts below. Press Ctrl+C to cancel.{RESET}\n")
 
     # ── 1. What should the AI do? ──────────────────────────────────────
     print(f"{BOLD}📝 What should the AI do?{RESET}")
-    print(f"  {DIM}Examples: 'Write a blog post about AI', 'Analyze pros and cons of remote work'{RESET}")
+    print(f"  {DIM}Just describe what you need in plain English.{RESET}")
     task = input(f"\n  {BOLD}Your task:{RESET} ").strip()
     if not task:
         print(f"{RED}No task provided. Exiting.{RESET}")
         return
 
-    # ── 2. Choose a pattern ────────────────────────────────────────────
-    print(f"\n{BOLD}🔀 How should the AI work on this?{RESET}")
-    print(f"  {CYAN}1{RESET}  ✍️  Simple      {DIM}— One expert writes, another reviews{RESET}")
-    print(f"  {CYAN}2{RESET}  🔀 Multi-view   {DIM}— Multiple experts work in parallel, then combine{RESET}")
-    print(f"  {CYAN}3{RESET}  ⚖️  Debate       {DIM}— One writes, one challenges, one gives final answer{RESET}")
-    print(f"  {CYAN}4{RESET}  📊 Deep dive    {DIM}— Split into parts, analyze each, merge results{RESET}")
+    # ── 2. Smart route ─────────────────────────────────────────────────
+    route = _smart_route(task)
 
-    pattern = input(f"\n  {BOLD}Choose [1-4]:{RESET} ").strip() or "1"
+    print(f"\n{BOLD}🧠 Smart Routing:{RESET}")
+    print(f"  {CYAN}Pattern:{RESET}    {route['pattern_name']}  {DIM}— {route['pattern_reason']}{RESET}")
+    print(f"  {CYAN}Model:{RESET}      {route['model_name']}  {DIM}— {route['model_reason']}{RESET}")
+    print(f"  {CYAN}Agents:{RESET}     {route['roles_display']}")
+    print(f"  {CYAN}Complexity:{RESET} {'🟢 Low' if route['complexity'] == 'low' else '🟡 Medium' if route['complexity'] == 'medium' else '🔴 High'}")
 
-    # ── 3. Optional: customize roles ───────────────────────────────────
-    print(f"\n{BOLD}🎭 Want to name the AI agents?{RESET} {DIM}(press Enter to use defaults){RESET}")
+    override = input(f"\n  {BOLD}Accept? [Y/n/customize]:{RESET} ").strip().lower()
 
-    if pattern == "1":
-        default_a, default_b = "writer", "reviewer"
-        role1 = input(f"  Agent 1 [{default_a}]: ").strip() or default_a
-        role2 = input(f"  Agent 2 [{default_b}]: ").strip() or default_b
-        roles_display = f"{role1} → {role2}"
-        pipeline_type = "chain"
+    if override in ("n", "no", "c", "customize"):
+        # Fall back to manual selection
+        return _run_manual(task, _args)
 
-    elif pattern == "2":
-        default_roles = "analyst,creative,critic"
-        merge_default = "synthesizer"
-        roles_str = input(f"  Parallel agents [{default_roles}]: ").strip() or default_roles
-        merge_role = input(f"  Merge agent   [{merge_default}]: ").strip() or merge_default
-        fork_roles = [r.strip() for r in roles_str.split(",")]
-        roles_display = f"[{', '.join(fork_roles)}] → {merge_role}"
-        pipeline_type = "parallel"
+    pipeline_type = route["pipeline_type"]
+    model = route["model"]
+    roles_display = route["roles_display"]
 
-    elif pattern == "3":
-        default_p, default_c, default_s = "expert", "challenger", "synthesizer"
-        role_p = input(f"  Producer    [{default_p}]: ").strip() or default_p
-        role_c = input(f"  Challenger  [{default_c}]: ").strip() or default_c
-        role_s = input(f"  Synthesizer [{default_s}]: ").strip() or default_s
-        roles_display = f"{role_p} → {role_c} → {role_s}"
-        pipeline_type = "verify"
+    # Role variables needed for execution
+    if pipeline_type == "chain":
+        role1, role2 = route["roles"]
+    elif pipeline_type == "parallel":
+        fork_roles = route["roles"][:-1]
+        merge_role = route["roles"][-1]
+    elif pipeline_type == "verify":
+        role_p, role_c, role_s = route["roles"]
+    elif pipeline_type == "shard":
+        shard_role = route["roles"][0]
+        n = route.get("shard_count", 3)
+        merge_role = route["roles"][-1]
 
-    elif pattern == "4":
-        default_role = "analyst"
-        merge_default = "editor"
-        shard_role = input(f"  Shard agent [{default_role}]: ").strip() or default_role
-        n_str = input(f"  How many parts? [3]: ").strip() or "3"
-        n = int(n_str) if n_str.isdigit() else 3
-        merge_role = input(f"  Merge agent [{merge_default}]: ").strip() or merge_default
-        roles_display = f"{shard_role} ×{n} → {merge_role}"
-        pipeline_type = "shard"
-    else:
-        print(f"{RED}Invalid choice. Using Simple mode.{RESET}")
-        role1, role2 = "writer", "reviewer"
-        roles_display = f"{role1} → {role2}"
-        pipeline_type = "chain"
-
-    # ── 4. Choose model ────────────────────────────────────────────────
-    print(f"\n{BOLD}🤖 Choose AI model:{RESET}")
-    print(f"  {CYAN}1{RESET}  Haiku     {DIM}— Fast & cheap (recommended){RESET}")
-    print(f"  {CYAN}2{RESET}  Sonnet    {DIM}— Balanced quality & speed{RESET}")
-    print(f"  {CYAN}3{RESET}  Opus      {DIM}— Most capable, slower{RESET}")
-
-    model_choice = input(f"\n  {BOLD}Choose [1-3]:{RESET} ").strip() or "1"
-    model_map_or = {"1": "anthropic/claude-3.5-haiku", "2": "anthropic/claude-sonnet-4", "3": "anthropic/claude-opus-4"}
-    model_map_an = {"1": "claude-haiku-4-5-20251001", "2": "claude-sonnet-4-20250514", "3": "claude-opus-4-20250514"}
-
-    # ── 5. Detect provider ─────────────────────────────────────────────
+    # ── 3. Detect provider ─────────────────────────────────────────────
     or_key = os.environ.get("OPENROUTER_API_KEY", "")
     an_key = os.environ.get("ANTHROPIC_API_KEY", "")
     use_or = bool(or_key)
@@ -382,16 +353,15 @@ def cmd_run(_args: argparse.Namespace) -> None:
         print(f"\n{RED}No API key found! Run 'mmcp setup' first.{RESET}")
         return
 
-    model = model_map_or.get(model_choice, model_map_or["1"]) if use_or else model_map_an.get(model_choice, model_map_an["1"])
     provider = "OpenRouter" if use_or else "Anthropic"
 
-    # ── 6. Export option ───────────────────────────────────────────────
+    # ── 4. Export option ───────────────────────────────────────────────
     save = input(f"\n{BOLD}💾 Save audit trail? [y/N]:{RESET} ").strip().lower()
     export_path = None
     if save in ("y", "yes"):
         export_path = f"./mmcp-audits/run_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
 
-    # ── 7. Confirm and run ─────────────────────────────────────────────
+    # ── 5. Confirm and run ─────────────────────────────────────────────
     print(f"\n{'─' * 60}")
     print(f"  {BOLD}Task:{RESET}     {task}")
     print(f"  {BOLD}Pattern:{RESET}  {roles_display}")
@@ -406,7 +376,7 @@ def cmd_run(_args: argparse.Namespace) -> None:
         print(f"{DIM}Cancelled.{RESET}")
         return
 
-    # ── 8. Build and execute ───────────────────────────────────────────
+    # ── 6. Execute ─────────────────────────────────────────────────────
     print(f"\n{BOLD}🚀 Running...{RESET}\n")
 
     if pipeline_type == "chain":
@@ -429,7 +399,6 @@ def cmd_run(_args: argparse.Namespace) -> None:
         orc = _make_orchestrator(all_roles, model, False, use_or)
         result = asyncio.run(orc.run_sharded(task, shard_role, n, merge_role))
 
-    # ── 9. Show results ───────────────────────────────────────────────
     _print_result(result, verbose=False)
 
     if export_path and result:
@@ -440,12 +409,177 @@ def cmd_run(_args: argparse.Namespace) -> None:
             json.dump(wire_dag, f, indent=2, default=str)
         print(f"\n{GREEN}📄 Audit trail saved: {export_path}{RESET}")
 
-    # ── 10. Ask to continue ───────────────────────────────────────────
     print()
     again = input(f"  {BOLD}Run another task? [y/N]:{RESET} ").strip().lower()
     if again in ("y", "yes"):
         cmd_run(_args)
 
+
+# ── Smart Router ────────────────────────────────────────────────────────────
+
+# Keyword patterns for task classification
+_COMPLEXITY_HIGH = [
+    "research", "analyze", "compare", "evaluate", "design", "architect",
+    "security", "audit", "compliance", "legal", "review", "strategy",
+    "thesis", "dissertation", "whitepaper", "scientific", "prove",
+    "mathematics", "algorithm", "optimize", "refactor",
+]
+_COMPLEXITY_MEDIUM = [
+    "explain", "describe", "write", "create", "generate", "draft",
+    "plan", "outline", "summarize", "blog", "article", "report",
+    "email", "document", "proposal", "recommend", "suggest",
+]
+_PATTERN_DEBATE = [
+    "pros and cons", "argue", "debate", "controversial", "opinion",
+    "is it better", "should we", "versus", "vs", "compare",
+    "agree or disagree", "evaluate", "critique",
+]
+_PATTERN_MULTIVIEW = [
+    "multiple perspectives", "different angles", "brainstorm",
+    "creative ideas", "alternatives", "options", "approaches",
+    "from different", "various viewpoints",
+]
+_PATTERN_SHARD = [
+    "long document", "entire book", "full report", "comprehensive",
+    "all aspects", "thorough", "deep dive", "detailed analysis",
+    "extensive", "complete overview", "in-depth",
+]
+
+
+def _smart_route(task: str) -> dict:
+    """Analyze the task and auto-select the best pattern + model."""
+    task_lower = task.lower()
+    words = task_lower.split()
+    word_count = len(words)
+
+    # ── Detect provider ────────────────────────────────────────────────
+    or_key = os.environ.get("OPENROUTER_API_KEY", "")
+    use_or = bool(or_key)
+
+    # ── Complexity scoring ─────────────────────────────────────────────
+    high_hits = sum(1 for kw in _COMPLEXITY_HIGH if kw in task_lower)
+    med_hits = sum(1 for kw in _COMPLEXITY_MEDIUM if kw in task_lower)
+
+    if high_hits >= 2 or word_count > 50:
+        complexity = "high"
+    elif high_hits >= 1 or med_hits >= 2 or word_count > 25:
+        complexity = "medium"
+    else:
+        complexity = "low"
+
+    # ── Model selection ────────────────────────────────────────────────
+    if complexity == "high":
+        model = "anthropic/claude-sonnet-4" if use_or else "claude-sonnet-4-20250514"
+        model_name = "Sonnet"
+        model_reason = "Complex task needs strong reasoning"
+    elif complexity == "medium":
+        model = "anthropic/claude-3.5-haiku" if use_or else "claude-haiku-4-5-20251001"
+        model_name = "Haiku"
+        model_reason = "Good balance for this task"
+    else:
+        model = "anthropic/claude-3.5-haiku" if use_or else "claude-haiku-4-5-20251001"
+        model_name = "Haiku"
+        model_reason = "Fast & efficient for straightforward tasks"
+
+    # ── Pattern selection ──────────────────────────────────────────────
+    debate_hits = sum(1 for kw in _PATTERN_DEBATE if kw in task_lower)
+    multi_hits = sum(1 for kw in _PATTERN_MULTIVIEW if kw in task_lower)
+    shard_hits = sum(1 for kw in _PATTERN_SHARD if kw in task_lower)
+
+    if debate_hits >= 1:
+        pipeline_type = "verify"
+        pattern_name = "⚖️  Debate"
+        pattern_reason = "Task involves comparison or evaluation"
+        roles = ["expert", "challenger", "synthesizer"]
+        roles_display = "expert → challenger → synthesizer"
+    elif multi_hits >= 1 or (high_hits >= 2 and "?" in task):
+        pipeline_type = "parallel"
+        pattern_name = "🔀 Multi-view"
+        pattern_reason = "Benefits from multiple perspectives"
+        roles = ["analyst", "creative", "critic", "synthesizer"]
+        roles_display = "[analyst, creative, critic] → synthesizer"
+    elif shard_hits >= 1 or word_count > 40:
+        pipeline_type = "shard"
+        pattern_name = "📊 Deep dive"
+        pattern_reason = "Complex topic needs thorough coverage"
+        n = 3 if complexity != "high" else 4
+        roles = ["analyst", "editor"]
+        roles_display = f"analyst ×{n} → editor"
+    else:
+        pipeline_type = "chain"
+        pattern_name = "✍️  Simple"
+        pattern_reason = "Clean write → review flow"
+        roles = ["writer", "reviewer"]
+        roles_display = "writer → reviewer"
+
+    result = {
+        "complexity": complexity,
+        "pipeline_type": pipeline_type,
+        "pattern_name": pattern_name,
+        "pattern_reason": pattern_reason,
+        "model": model,
+        "model_name": model_name,
+        "model_reason": model_reason,
+        "roles": roles,
+        "roles_display": roles_display,
+    }
+    if pipeline_type == "shard":
+        result["shard_count"] = n
+
+    return result
+
+
+def _run_manual(task: str, _args: argparse.Namespace) -> None:
+    """Fallback to full manual selection."""
+    print(f"\n{BOLD}🔀 Choose pattern:{RESET}")
+    print(f"  {CYAN}1{RESET}  ✍️  Simple      {DIM}— writer → reviewer{RESET}")
+    print(f"  {CYAN}2{RESET}  🔀 Multi-view   {DIM}— parallel → merge{RESET}")
+    print(f"  {CYAN}3{RESET}  ⚖️  Debate       {DIM}— expert → challenger → synthesizer{RESET}")
+    print(f"  {CYAN}4{RESET}  📊 Deep dive    {DIM}— shard → merge{RESET}")
+    pattern = input(f"\n  {BOLD}Choose [1-4]:{RESET} ").strip() or "1"
+
+    print(f"\n{BOLD}🤖 Choose model:{RESET}")
+    print(f"  {CYAN}1{RESET}  Haiku   {CYAN}2{RESET}  Sonnet   {CYAN}3{RESET}  Opus")
+    model_choice = input(f"  {BOLD}Choose [1-3]:{RESET} ").strip() or "1"
+
+    or_key = os.environ.get("OPENROUTER_API_KEY", "")
+    an_key = os.environ.get("ANTHROPIC_API_KEY", "")
+    use_or = bool(or_key)
+
+    if not or_key and not an_key:
+        print(f"\n{RED}No API key found! Run 'mmcp setup' first.{RESET}")
+        return
+
+    model_map_or = {"1": "anthropic/claude-3.5-haiku", "2": "anthropic/claude-sonnet-4", "3": "anthropic/claude-opus-4"}
+    model_map_an = {"1": "claude-haiku-4-5-20251001", "2": "claude-sonnet-4-20250514", "3": "claude-opus-4-20250514"}
+    model = model_map_or.get(model_choice, model_map_or["1"]) if use_or else model_map_an.get(model_choice, model_map_an["1"])
+    provider = "OpenRouter" if use_or else "Anthropic"
+
+    print(f"\n{BOLD}🚀 Running...{RESET}\n")
+
+    if pattern == "1":
+        orc = _make_orchestrator(["writer", "reviewer"], model, False, use_or)
+        result = asyncio.run(orc.run_chain(task, ["writer", "reviewer"]))
+    elif pattern == "2":
+        roles = ["analyst", "creative", "critic"]
+        orc = _make_orchestrator(roles + ["synthesizer"], model, False, use_or)
+        result = asyncio.run(orc.run_parallel(task, roles, "synthesizer"))
+    elif pattern == "3":
+        orc = _make_orchestrator(["expert", "challenger", "synthesizer"], model, False, use_or)
+        result = asyncio.run(orc.run_verify(task, "expert", "challenger", "synthesizer"))
+    elif pattern == "4":
+        orc = _make_orchestrator(["analyst", "editor"], model, False, use_or)
+        result = asyncio.run(orc.run_sharded(task, "analyst", 3, "editor"))
+    else:
+        orc = _make_orchestrator(["writer", "reviewer"], model, False, use_or)
+        result = asyncio.run(orc.run_chain(task, ["writer", "reviewer"]))
+
+    _print_result(result, verbose=False)
+
+    print()
+    again = input(f"  {BOLD}Run another task? [y/N]:{RESET} ").strip().lower()
+    if again in ("y", "yes"):
+        cmd_run(_args)
 
 def cmd_setup(_args: argparse.Namespace) -> None:
     """Interactive setup wizard for MMCP."""
