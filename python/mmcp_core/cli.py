@@ -475,19 +475,72 @@ def _smart_route(task: str) -> dict:
     else:
         complexity = "low"
 
-    # ── Model selection ────────────────────────────────────────────────
-    if complexity == "high":
-        model = "anthropic/claude-sonnet-4" if use_or else "claude-sonnet-4-20250514"
-        model_name = "Sonnet"
-        model_reason = "Complex task needs strong reasoning"
-    elif complexity == "medium":
-        model = "anthropic/claude-3.5-haiku" if use_or else "claude-haiku-4-5-20251001"
-        model_name = "Haiku"
-        model_reason = "Good balance for this task"
+    # ── Task-type detection ─────────────────────────────────────────────
+    _CODING_KW = ["code", "program", "function", "debug", "api", "script",
+                  "python", "javascript", "typescript", "rust", "sql", "html",
+                  "css", "react", "deploy", "docker", "git", "refactor", "bug"]
+    _CREATIVE_KW = ["write", "story", "poem", "blog", "creative", "essay",
+                    "narrative", "fiction", "article", "content", "copy",
+                    "marketing", "brand", "slogan", "tagline"]
+    _MATH_KW = ["math", "calculate", "equation", "proof", "theorem",
+                "statistics", "probability", "algebra", "calculus",
+                "optimization", "numerical", "formula"]
+    _REASONING_KW = ["research", "analyze", "evaluate", "strategy", "design",
+                     "architecture", "security", "legal", "compliance",
+                     "scientific", "thesis", "philosophy"]
+    _FAST_KW = ["quick", "short", "simple", "brief", "summarize", "translate",
+                "list", "define", "one word", "yes or no", "haiku"]
+
+    coding_hits = sum(1 for kw in _CODING_KW if kw in task_lower)
+    creative_hits = sum(1 for kw in _CREATIVE_KW if kw in task_lower)
+    math_hits = sum(1 for kw in _MATH_KW if kw in task_lower)
+    reasoning_hits = sum(1 for kw in _REASONING_KW if kw in task_lower)
+    fast_hits = sum(1 for kw in _FAST_KW if kw in task_lower)
+
+    # ── Model selection (multi-provider via OpenRouter) ────────────────
+    if use_or:
+        if coding_hits >= 2:
+            model = "google/gemini-2.5-pro-preview"
+            model_name = "Gemini 2.5 Pro"
+            model_reason = "Top-tier for coding tasks"
+        elif coding_hits >= 1:
+            model = "openai/gpt-4o"
+            model_name = "GPT-4o"
+            model_reason = "Strong at code generation"
+        elif math_hits >= 2:
+            model = "deepseek/deepseek-r1"
+            model_name = "DeepSeek R1"
+            model_reason = "Best for math & reasoning"
+        elif creative_hits >= 2:
+            model = "anthropic/claude-sonnet-4"
+            model_name = "Claude Sonnet"
+            model_reason = "Excellent creative writing"
+        elif reasoning_hits >= 2 or complexity == "high":
+            model = "anthropic/claude-sonnet-4"
+            model_name = "Claude Sonnet"
+            model_reason = "Deep reasoning & analysis"
+        elif fast_hits >= 1 or complexity == "low":
+            model = "meta-llama/llama-4-maverick"
+            model_name = "Llama 4 Maverick"
+            model_reason = "Fast & free for quick tasks"
+        elif complexity == "medium":
+            model = "anthropic/claude-3.5-haiku"
+            model_name = "Claude Haiku"
+            model_reason = "Good all-rounder"
+        else:
+            model = "anthropic/claude-3.5-haiku"
+            model_name = "Claude Haiku"
+            model_reason = "Fast & efficient"
     else:
-        model = "anthropic/claude-3.5-haiku" if use_or else "claude-haiku-4-5-20251001"
-        model_name = "Haiku"
-        model_reason = "Fast & efficient for straightforward tasks"
+        # Anthropic-only mode
+        if complexity == "high":
+            model = "claude-sonnet-4-20250514"
+            model_name = "Claude Sonnet"
+            model_reason = "Complex task needs strong reasoning"
+        else:
+            model = "claude-haiku-4-5-20251001"
+            model_name = "Claude Haiku"
+            model_reason = "Fast & efficient"
 
     # ── Pattern selection ──────────────────────────────────────────────
     debate_hits = sum(1 for kw in _PATTERN_DEBATE if kw in task_lower)
