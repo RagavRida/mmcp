@@ -5,14 +5,30 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "mmcp-core"
 version = "1.0.0"
-description = "Multiple Model Context Protocol — orchestrate AI models as a coordinated DAG"
+description = "One CLI that auto-routes tasks to the best AI model — Gemini, GPT, Claude, DeepSeek, Llama. No model selection needed."
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.11"
 authors = [
     { name = "Raghavendra Machikatla" },
 ]
-keywords = ["mmcp", "multi-agent", "llm", "orchestration", "dag", "audit", "compliance"]
+keywords = [
+    "mmcp", "multi-model", "llm", "orchestration", "dag", "ai",
+    "smart-routing", "openrouter", "claude", "gpt", "gemini",
+    "deepseek", "llama", "multi-agent", "audit", "cli",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Environment :: Console",
+]
 dependencies = [
     "httpx>=0.27.0",
 ]
@@ -43,3 +59,5 @@ include = ["mmcp_core*", "langchain_mmcp*"]
 Homepage = "https://github.com/RagavRida/mmcp"
 Repository = "https://github.com/RagavRida/mmcp"
 Documentation = "https://github.com/RagavRida/mmcp#readme"
+"Bug Tracker" = "https://github.com/RagavRida/mmcp/issues"
+"MMCP Cloud" = "https://mmcp.up.railway.app"
