@@ -4,7 +4,8 @@
 
 **Orchestrate AI models as a coordinated DAG. One CLI. Every model. Smart routing.**
 
-[![PyPI](https://img.shields.io/pypi/v/mmcp-core?style=flat-square&logo=pypi&label=PyPI)](https://pypi.org/project/mmcp-core/)
+[![PyPI](https://img.shields.io/pypi/v/mmcp-core?style=flat-square&logo=pypi&label=PyPI&color=blue)](https://pypi.org/project/mmcp-core/)
+[![Downloads](https://img.shields.io/pypi/dm/mmcp-core?style=flat-square&label=downloads)](https://pypi.org/project/mmcp-core/)
 [![npm](https://img.shields.io/npm/v/@mmcp/core?style=flat-square&logo=npm)](https://npmjs.com/package/@mmcp/core)
 [![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
 [![Railway](https://img.shields.io/badge/API-live-brightgreen?style=flat-square&logo=railway)](https://mmcp.up.railway.app/health)
@@ -26,7 +27,7 @@
 ## ⚡ 30-Second Quick Start
 
 ```bash
-pip install git+https://github.com/RagavRida/mmcp.git#subdirectory=python
+pip install mmcp-core
 mmcp login
 mmcp run
 ```
@@ -105,8 +106,7 @@ mmcp account    # check usage
 ### Python (CLI + SDK)
 
 ```bash
-# From GitHub
-pip install git+https://github.com/RagavRida/mmcp.git#subdirectory=python
+pip install mmcp-core
 
 # BYOK mode (bring your own key)
 mmcp setup
@@ -216,7 +216,7 @@ Every model invocation produces a Context Envelope:
 - [x] Multi-provider: Anthropic, OpenAI, Google, Meta, DeepSeek, Mistral
 - [ ] Streaming outputs
 - [ ] Web dashboard + playground
-- [ ] PyPI package (`pip install mmcp`)
+- [x] PyPI package (`pip install mmcp-core`) ✅
 - [ ] Confidence scoring + auto-retry
 - [ ] MMCP Registry (share pipeline configs)
 - [ ] Enterprise: SSO, audit export, compliance
@@ -228,6 +228,11 @@ git clone https://github.com/RagavRida/mmcp.git
 cd mmcp/python
 pip install -e ".[all]"
 pytest
+```
+
+Or install from PyPI to use:
+```bash
+pip install mmcp-core
 ```
 
 ## 📄 License
