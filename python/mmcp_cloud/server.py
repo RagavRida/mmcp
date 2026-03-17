@@ -50,6 +50,10 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Register SSE streaming routes
+from .streaming import register_stream_routes
+register_stream_routes(app)
+
 
 # ── Auth helpers ────────────────────────────────────────────────────────────
 
