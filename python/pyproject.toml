@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mmcp-core"
-version = "1.0.0"
-description = "One CLI that auto-routes tasks to the best AI model — Gemini, GPT, Claude, DeepSeek, Llama. No model selection needed."
+version = "1.1.0"
+description = "Self-orchestrating multi-model AI pipeline — auto-routes tasks to Gemini, GPT, Claude, DeepSeek, Llama with smart routing, streaming, and audit trails."
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.11"
@@ -38,12 +38,18 @@ langchain = [
     "langchain-core>=0.2.0",
     "langgraph>=0.1.0",
 ]
+cloud = [
+    "fastapi>=0.111.0",
+    "uvicorn>=0.29.0",
+    "psycopg2-binary>=2.9.0",
+    "stripe>=8.0.0",
+]
 dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",
 ]
 all = [
-    "mmcp-core[langchain,dev]",
+    "mmcp-core[langchain,cloud,dev]",
 ]
 
 [project.scripts]
@@ -53,7 +59,7 @@ mmcp = "mmcp_core.cli:main"
 asyncio_mode = "auto"
 
 [tool.setuptools.packages.find]
-include = ["mmcp_core*", "langchain_mmcp*"]
+include = ["mmcp_core*", "langchain_mmcp*", "mmcp_cloud*"]
 
 [project.urls]
 Homepage = "https://github.com/RagavRida/mmcp"

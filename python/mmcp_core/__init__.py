@@ -19,7 +19,7 @@ from .observer import MMCPObserver
 from .wire import MMCPWireFormat
 from .orchestrator import MMCPOrchestrator
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 __all__ = [
     "MMCPOrchestrator", "MMCPObserver", "MMCPWireFormat",
     "MemoryStore", "SharedContextStore", "SharedContextEntry",
