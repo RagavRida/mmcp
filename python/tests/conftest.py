@@ -1,10 +1,9 @@
 """Shared test fixtures for MMCP v2 test suite."""
 from __future__ import annotations
-import os
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock
 
-from mmcp_core.planner import ExecutionPlan, PlanStep, ACTION_TO_MODEL
+from mmcp_core.planner import ExecutionPlan, PlanStep
 
 
 # ── Ensure no real API calls ────────────────────────────────────────────────

@@ -14,6 +14,7 @@ SECURITY NOTE:
   See COMMAND_ALLOWLIST below.
 """
 from __future__ import annotations
+import json
 import os
 import subprocess
 from pathlib import Path
@@ -210,7 +211,6 @@ async def run_command(command: str) -> str:
 
 # ── Tool Dispatcher ─────────────────────────────────────────────────────────
 
-import json
 
 TOOL_FUNCTIONS = {
     "web_search": lambda args: web_search(args.get("query", "")),

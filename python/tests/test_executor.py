@@ -52,7 +52,7 @@ class TestExecuteHappyPath:
         monkeypatch.setattr(executor, "execute_tool",
                             lambda n, a: mock_execute(n, a))
 
-        result = await execute_plan(plan, api_key="test-key")
+        await execute_plan(plan, api_key="test-key")
         assert len(call_log) == 1
         assert call_log[0][0] == "web_search"
 
@@ -77,7 +77,7 @@ class TestErrorRecovery:
         """Failed step retries retry_count times."""
         call_count = 0
         from mmcp_core import executor
-        original = executor._call_model
+        executor._call_model  # noqa: B018
 
         async def counting_model(*args, **kwargs):
             nonlocal call_count
@@ -167,7 +167,7 @@ class TestCallbacks:
         monkeypatch.setattr(ex, "execute_tool", mock_et)
 
         starts, dones = [], []
-        result = await execute_plan(
+        await execute_plan(
             simple_plan, api_key="test-key",
             on_step_start=lambda s: starts.append(s.step),
             on_step_done=lambda s: dones.append(s.step),

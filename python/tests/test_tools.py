@@ -1,9 +1,8 @@
 """Tests for mmcp_core.tools — built-in tool functions."""
 from __future__ import annotations
-import os
 import pytest
 from mmcp_core.tools import (
-    web_search, http_request, read_file, write_file,
+    web_search, read_file, write_file,
     run_command, execute_tool, COMMAND_ALLOWLIST,
 )
 

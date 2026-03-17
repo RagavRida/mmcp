@@ -100,7 +100,7 @@ async def test_tracer_with_real_langchain():
 
     tracer = MMCPTracer(regulation_tags=["SOC2"])
     llm = ChatAnthropic(model="claude-haiku-4-5-20251001")
-    response = llm.invoke(
+    llm.invoke(
         [HumanMessage(content="What is 1+1?")],
         config={"callbacks": [tracer]},
     )

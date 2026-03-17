@@ -7,7 +7,7 @@ import hashlib
 import uuid
 from datetime import datetime, timezone
 from .types import ContextEnvelope, MMCP_VERSION
-from .adapter import MODEL_PRICING, calculate_cost
+from .adapter import calculate_cost
 
 
 class MMCPWireFormat:

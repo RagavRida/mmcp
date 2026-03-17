@@ -1,5 +1,4 @@
 """Tests for SharedContextStore — no API needed."""
-import pytest
 from mmcp_core import SharedContextStore, SharedContextEntry
 from mmcp_core.observer import MMCPObserver
 

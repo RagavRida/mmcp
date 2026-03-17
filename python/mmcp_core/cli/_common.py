@@ -4,13 +4,9 @@ Shared utilities for the MMCP CLI.
 Colors, banners, formatters, orchestrator factory, env loading.
 """
 from __future__ import annotations
-import asyncio
 import json
 import os
-import sys
-from datetime import datetime, timezone
 
-from ..types import MMCP_VERSION
 from ..orchestrator import MMCPOrchestrator
 from ..router import RoleBasedRouter
 from ..store import MemoryStore
@@ -18,10 +14,6 @@ from ..shared import SharedContextStore
 from ..observer import MMCPObserver
 from ..wire import MMCPWireFormat
 from ..adapter import call_openrouter
-from ..cloud import (
-    call_mmcp_cloud, load_cloud_config, save_cloud_config,
-    remove_cloud_config, is_cloud_configured, DEFAULT_CLOUD_URL,
-)
 
 # ── ANSI Colors ─────────────────────────────────────────────────────────────
 

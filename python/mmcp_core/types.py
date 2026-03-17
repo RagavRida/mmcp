@@ -3,7 +3,7 @@ MMCP Core Types — mirrors TypeScript src/core/types.ts exactly.
 Dataclasses + Literal types for full type safety.
 """
 from __future__ import annotations
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional, Literal, Any
 
 MMCP_VERSION = "1.0"

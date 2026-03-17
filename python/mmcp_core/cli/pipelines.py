@@ -25,7 +25,7 @@ def cmd_chain(args: argparse.Namespace) -> None:
     print(f"  Model:  {model}")
     print(f"  Roles:  {' → '.join(roles)}")
     if use_or:
-        print(f"  Via:    OpenRouter")
+        print("  Via:    OpenRouter")
 
     orc = _make_orchestrator(roles, model, args.verbose, use_or)
     result = asyncio.run(orc.run_chain(args.task, roles))
@@ -47,7 +47,7 @@ def cmd_parallel(args: argparse.Namespace) -> None:
     print(f"  Fork roles: {', '.join(fork_roles)}")
     print(f"  Merge role: {merge_role}")
     if use_or:
-        print(f"  Via:        OpenRouter")
+        print("  Via:        OpenRouter")
 
     all_roles = fork_roles + [merge_role]
     orc = _make_orchestrator(all_roles, model, args.verbose, use_or)
@@ -68,7 +68,7 @@ def cmd_verify(args: argparse.Namespace) -> None:
     print(f"  Challenger:  {args.challenger}")
     print(f"  Synthesizer: {args.synthesizer}")
     if use_or:
-        print(f"  Via:         OpenRouter")
+        print("  Via:         OpenRouter")
 
     roles = [args.producer, args.challenger, args.synthesizer]
     orc = _make_orchestrator(roles, model, args.verbose, use_or)
@@ -91,7 +91,7 @@ def cmd_shard(args: argparse.Namespace) -> None:
     print(f"  Shards:     {args.shards}")
     print(f"  Merge role: {args.merge_role}")
     if use_or:
-        print(f"  Via:        OpenRouter")
+        print("  Via:        OpenRouter")
 
     roles = [args.role, args.merge_role]
     orc = _make_orchestrator(roles, model, args.verbose, use_or)

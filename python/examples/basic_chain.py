@@ -1,6 +1,5 @@
 """Basic chain example — sequential handoff pipeline."""
 import asyncio
-import os
 from mmcp_core import MMCPOrchestrator, RoleBasedRouter, MemoryStore, MMCPObserver
 
 HAIKU = "claude-haiku-4-5-20251001"

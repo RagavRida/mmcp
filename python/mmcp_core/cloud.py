@@ -4,9 +4,7 @@ MMCP Cloud adapter — calls MMCP Cloud proxy instead of OpenRouter directly.
 Reads API key from ~/.mmcp/config.json and routes through api.mmcp.dev.
 """
 from __future__ import annotations
-import asyncio
 import json
-import os
 from pathlib import Path
 
 import httpx

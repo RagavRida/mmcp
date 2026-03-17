@@ -20,8 +20,7 @@ import time
 from contextlib import asynccontextmanager
 
 import httpx
-from fastapi import FastAPI, HTTPException, Request, Depends
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
 
 from .database import (
@@ -33,6 +32,7 @@ from .billing import (
     is_stripe_configured, create_checkout_session, create_billing_portal,
     handle_webhook_event,
 )
+from .streaming import register_stream_routes
 
 
 # ── Lifespan ────────────────────────────────────────────────────────────────
@@ -51,7 +51,6 @@ app = FastAPI(
 )
 
 # Register SSE streaming routes
-from .streaming import register_stream_routes
 register_stream_routes(app)
 
 

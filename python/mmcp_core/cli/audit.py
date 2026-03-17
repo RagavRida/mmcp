@@ -6,7 +6,7 @@ import os
 import sys
 
 from ._common import (
-    _banner, _status_icon, BOLD, DIM, GREEN, YELLOW, RED, CYAN, RESET,
+    _banner, _status_icon, BOLD, DIM, RED, RESET,
 )
 
 

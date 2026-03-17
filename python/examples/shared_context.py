@@ -38,7 +38,7 @@ async def main():
     )
 
     print(f"\n✅ Success: {result.success}")
-    print(f"\n📦 Shared context snapshot:")
+    print("\n📦 Shared context snapshot:")
     for k, v in shared.snapshot().items():
         print(f"  {k}: {str(v)[:80]}")
 

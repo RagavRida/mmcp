@@ -1,6 +1,5 @@
 """Tests for mmcp_core.skill_engine — save, load, fuzzy match."""
 from __future__ import annotations
-import pytest
 from mmcp_core.planner import ExecutionPlan, PlanStep
 from mmcp_core.skill_engine import (
     save_skill, load_skill, list_skills, delete_skill,

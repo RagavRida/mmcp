@@ -7,9 +7,8 @@ import os
 from datetime import datetime
 
 from ._common import (
-    _resolve_model, _banner, _load_env, _print_result,
-    _make_orchestrator, _status_icon,
-    BOLD, DIM, GREEN, YELLOW, RED, CYAN, RESET,
+    _banner, _load_env, _print_result,
+    _make_orchestrator, BOLD, DIM, GREEN, RED, CYAN, RESET,
 )
 from ..wire import MMCPWireFormat
 

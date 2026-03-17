@@ -10,7 +10,7 @@ from .context import create_context, build_history, topological_sort, parents_re
 from .store import MemoryStore
 from .shared import SharedContextStore
 from .observer import MMCPObserver
-from .adapter import call_anthropic, call_openrouter
+from .adapter import call_anthropic
 from .operations import fork, merge, handoff, shard, verify
 
 

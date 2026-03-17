@@ -31,7 +31,6 @@ from typing import Any
 from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.outputs import LLMResult
 
-from mmcp_core.types import MMCP_VERSION
 from mmcp_core.context import create_context
 from mmcp_core.wire import MMCPWireFormat
 

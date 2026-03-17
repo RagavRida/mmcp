@@ -21,7 +21,7 @@ import argparse
 import sys
 
 from ..types import MMCP_VERSION
-from ._common import _load_env, BOLD, DIM, RED, RESET
+from ._common import _load_env, DIM, RED, RESET
 from ..cloud import is_cloud_configured, DEFAULT_CLOUD_URL
 
 # Import all command handlers

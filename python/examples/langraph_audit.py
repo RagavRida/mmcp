@@ -4,7 +4,6 @@ Shows MMCPTracer on a real LangGraph pipeline.
 One line → full MMCP audit trail with SHA-256 hashes.
 """
 import asyncio
-import os
 
 
 async def main():
@@ -111,9 +110,9 @@ async def main():
             f"— hash: {entry['audit_hash'][:16]}..."
         )
 
-    print(f"\n✅ Audit trail exported to: ./mmcp-audits/")
-    print(f"   Import this JSON into any compliance system")
-    print(f"   SHA-256 hashes prove outputs haven't been tampered with")
+    print("\n✅ Audit trail exported to: ./mmcp-audits/")
+    print("   Import this JSON into any compliance system")
+    print("   SHA-256 hashes prove outputs haven't been tampered with")
 
 
 if __name__ == "__main__":

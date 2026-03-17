@@ -19,7 +19,7 @@ from typing import AsyncGenerator
 
 import httpx
 
-from .planner import ExecutionPlan, PlanStep, ACTION_TO_MODEL
+from .planner import ExecutionPlan, ACTION_TO_MODEL
 
 
 async def stream_execute(

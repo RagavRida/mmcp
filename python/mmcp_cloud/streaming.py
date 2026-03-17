@@ -88,7 +88,7 @@ async def stream_chat(
                 },
             ) as resp:
                 if resp.status_code != 200:
-                    body = await resp.aread()
+                    await resp.aread()
                     yield _sse_event({"type": "error", "message": f"Upstream error: {resp.status_code}"})
                     return
 
