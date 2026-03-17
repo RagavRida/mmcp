@@ -21,8 +21,8 @@ import httpx
 from fastapi import HTTPException, Request
 from starlette.responses import StreamingResponse
 
-from .database import get_user_by_key, log_usage
-from .billing import apply_markup, check_rate_limit, get_usage, get_month_start
+from .database import get_user_by_key, log_usage, get_usage
+from .billing import apply_markup, check_rate_limit, get_month_start
 
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
