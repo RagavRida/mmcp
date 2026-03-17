@@ -2,11 +2,14 @@
 MMCP Cloud — FastAPI proxy server.
 
 Endpoints:
-  POST /v1/auth/register  — create account
-  POST /v1/auth/login     — get API key
-  POST /v1/chat/completions — proxy to OpenRouter with markup
-  GET  /v1/account/usage  — usage stats
-  GET  /v1/account/plan   — current plan + limits
+  POST /v1/auth/register          — create account
+  POST /v1/auth/login             — get API key
+  POST /v1/chat/completions       — proxy to OpenRouter with markup
+  GET  /v1/account/usage          — usage stats
+  GET  /v1/account/plan           — current plan + limits
+  POST /v1/billing/checkout       — create Stripe checkout session
+  POST /v1/billing/portal         — open Stripe billing portal
+  POST /v1/billing/webhook        — Stripe webhook handler
 
 Run:
   uvicorn mmcp_cloud.server:app --port 8765
@@ -21,8 +24,15 @@ from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from .database import init_db, create_user, authenticate_user, get_user_by_key, log_usage, get_usage
-from .billing import apply_markup, check_rate_limit, get_plan, get_month_start, PLANS
+from .database import (
+    init_db, create_user, authenticate_user, get_user_by_key,
+    log_usage, get_usage, update_user_plan, get_user_by_email,
+)
+from .billing import (
+    apply_markup, check_rate_limit, get_plan, get_month_start, PLANS,
+    is_stripe_configured, create_checkout_session, create_billing_portal,
+    handle_webhook_event,
+)
 
 
 # ── Lifespan ────────────────────────────────────────────────────────────────
@@ -35,8 +45,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="MMCP Cloud",
-    version="1.0.0",
-    description="MMCP proxy API gateway with usage-based billing",
+    version="1.1.0",
+    description="MMCP proxy API gateway with usage-based billing + Stripe",
     lifespan=lifespan,
 )
 
@@ -77,6 +87,12 @@ class ChatRequest(BaseModel):
     messages: list[ChatMessage]
     max_tokens: int = 4096
     temperature: float = 0.7
+
+
+class CheckoutRequest(BaseModel):
+    plan: str  # "pro" or "team"
+    success_url: str = "https://mmcp.dev/billing/success"
+    cancel_url: str = "https://mmcp.dev/billing/cancel"
 
 
 # ── Auth endpoints ──────────────────────────────────────────────────────────
@@ -247,6 +263,99 @@ async def account_plan(request: Request):
     }
 
 
+# ── Stripe billing endpoints ───────────────────────────────────────────────
+
+@app.post("/v1/billing/checkout")
+async def billing_checkout(req: CheckoutRequest, request: Request):
+    """Create a Stripe Checkout session for plan upgrade."""
+    if not is_stripe_configured():
+        raise HTTPException(503, "Stripe billing not configured on this server")
+
+    user = get_current_user(request)
+
+    if req.plan not in ("pro", "team"):
+        raise HTTPException(400, "Invalid plan. Choose 'pro' or 'team'.")
+
+    if user["plan"] == req.plan:
+        raise HTTPException(400, f"Already on {req.plan} plan.")
+
+    try:
+        checkout_url = create_checkout_session(
+            email=user["email"],
+            plan_id=req.plan,
+            success_url=req.success_url,
+            cancel_url=req.cancel_url,
+        )
+        return {"status": "ok", "checkout_url": checkout_url}
+    except Exception as e:
+        raise HTTPException(500, f"Failed to create checkout: {e}")
+
+
+@app.post("/v1/billing/portal")
+async def billing_portal(request: Request):
+    """Open the Stripe Billing Portal for subscription management."""
+    if not is_stripe_configured():
+        raise HTTPException(503, "Stripe billing not configured on this server")
+
+    user = get_current_user(request)
+    user_data = get_user_by_email(user["email"])
+
+    if not user_data or not user_data.get("stripe_customer_id"):
+        raise HTTPException(400, "No active subscription. Use /v1/billing/checkout first.")
+
+    try:
+        portal_url = create_billing_portal(
+            stripe_customer_id=user_data["stripe_customer_id"],
+            return_url="https://mmcp.dev/account",
+        )
+        return {"status": "ok", "portal_url": portal_url}
+    except Exception as e:
+        raise HTTPException(500, f"Failed to create portal session: {e}")
+
+
+@app.post("/v1/billing/webhook")
+async def billing_webhook(request: Request):
+    """Handle Stripe webhook events for subscription lifecycle."""
+    payload = await request.body()
+    sig = request.headers.get("stripe-signature", "")
+
+    try:
+        result = handle_webhook_event(payload, sig)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+    if result.get("handled"):
+        email = result.get("email", "")
+        customer_id = result.get("customer_id", "")
+        plan = result.get("plan", "free")
+
+        # Find user and update plan
+        if email:
+            user = get_user_by_email(email)
+            if user:
+                update_user_plan(user["id"], plan, stripe_customer_id=customer_id)
+        elif customer_id:
+            # For subscription updates/deletions, find user by stripe_customer_id
+            # This is handled by searching the database
+            from .database import _get_db, _fetchone
+            conn = _get_db()
+            row = _fetchone(conn, "SELECT id FROM users WHERE stripe_customer_id = ?", (customer_id,))
+            conn.close()
+            if row:
+                update_user_plan(row["id"], plan)
+
+    return {"status": "ok", "event_type": result["event_type"]}
+
+
+# ── Health ──────────────────────────────────────────────────────────────────
+
 @app.get("/health")
 async def health():
-    return {"status": "ok", "service": "mmcp-cloud", "version": "1.0.0"}
+    from .database import USE_POSTGRES
+    return {
+        "status": "ok",
+        "service": "mmcp-cloud",
+        "version": "1.1.0",
+        "database": "postgresql" if USE_POSTGRES else "sqlite",
+        "stripe": is_stripe_configured(),
+    }
