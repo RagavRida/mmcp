@@ -5,7 +5,8 @@ import { createContext } from "../src/core/context";
 describe("ScoredRouter", () => {
 
     it("routes to highest-scored model", () => {
-        const router = new ScoredRouter(["model-a", "model-b"]);
+        // Disable exploration (epsilon=0) so routing is deterministic
+        const router = new ScoredRouter(["model-a", "model-b"], {}, undefined, undefined, { epsilon: 0 });
 
         // model-a: 3 successes, fast, cheap
         router.recordOutcome("model-a", true, 1000, 0.001);
