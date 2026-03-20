@@ -1,12 +1,12 @@
 <div align="center">
 
-# 🔀 MMCP — Multiple Model Context Protocol
+# 🔀 MMCP — Multi-Model Collaboration Pipeline
 
-**Orchestrate AI models as a coordinated DAG. One CLI. Every model. Smart routing.**
+**Orchestrate AI models as a coordinated DAG. RL routing · Multi-verifier voting · Agent mesh · Self-improving.**
 
+[![npm](https://img.shields.io/npm/v/mmcp-core?style=flat-square&logo=npm&color=red)](https://npmjs.com/package/mmcp-core)
 [![PyPI](https://img.shields.io/pypi/v/mmcp-core?style=flat-square&logo=pypi&label=PyPI&color=blue)](https://pypi.org/project/mmcp-core/)
 [![Downloads](https://img.shields.io/pypi/dm/mmcp-core?style=flat-square&label=downloads)](https://pypi.org/project/mmcp-core/)
-[![npm](https://img.shields.io/npm/v/@mmcp/core?style=flat-square&logo=npm)](https://npmjs.com/package/@mmcp/core)
 [![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
 [![Railway](https://img.shields.io/badge/API-live-brightgreen?style=flat-square&logo=railway)](https://mmcp.up.railway.app/health)
 [![GitHub stars](https://img.shields.io/github/stars/RagavRida/mmcp?style=flat-square&logo=github)](https://github.com/RagavRida/mmcp/stargazers)
@@ -103,6 +103,14 @@ mmcp account    # check usage
 
 ## 📦 Installation
 
+### TypeScript/Node.js (v2.1 — full platform)
+
+```bash
+npm install mmcp-core
+```
+
+Includes: RL router, multi-verifier, network mesh, feedback loop, persistence, auth, HTTP agent protocol, and benchmark suite.
+
 ### Python (CLI + SDK)
 
 ```bash
@@ -113,12 +121,6 @@ mmcp setup
 
 # OR Cloud mode (no keys needed)
 mmcp login
-```
-
-### TypeScript/Node.js
-
-```bash
-npm install @mmcp/core
 ```
 
 ## 🛠️ CLI Commands
@@ -158,16 +160,37 @@ print(result.dag)          # full audit trail
 ## 📊 TypeScript SDK
 
 ```typescript
-import { MMCPOrchestrator, RoleBasedRouter } from "@mmcp/core";
+import {
+  MMCPOrchestrator, ScoredRouter, MultiVerifier,
+  IntentAwareVerifier, BuiltinConstraints,
+  MMCPNetworkMesh, FeedbackLoop, IdentityManager,
+} from "mmcp-core";
 
-const orc = new MMCPOrchestrator({
-  router: new RoleBasedRouter({
-    architect: { model_id: "claude-opus-4-20250514" },
-    coder:     { model_id: "claude-sonnet-4-20250514" },
-    verifier:  { model_id: "claude-sonnet-4-20250514" },
-  }),
+// RL-ready router with UCB1 exploration
+const router = new ScoredRouter(
+  ["claude-sonnet-4-20250514", "gemini-2.5-pro", "deepseek-r1"],
+  { accuracy: 0.5, latency: 0.2, cost: 0.3 },
+);
+
+// Multi-verifier voting (majority consensus)
+const mv = new MultiVerifier("majority");
+const v1 = new IntentAwareVerifier();
+v1.addConstraint(BuiltinConstraints.minLength(50));
+v1.addConstraint(BuiltinConstraints.noHardcodedSecrets());
+mv.addVerifier("critic_1", v1);
+mv.addVerifier("critic_2", new IntentAwareVerifier());
+
+// Agent network mesh
+const mesh = new MMCPNetworkMesh("local", "capability_match");
+mesh.registerNode({
+  name: "India Agent", region: "ap-south",
+  endpoint: "https://india.mmcp.io",
+  capabilities: ["code_generation", "analysis"],
+  status: "online", latency_ms: 50, load: 0.3, metadata: {},
 });
 
+// Orchestrate
+const orc = new MMCPOrchestrator({ router });
 const result = await orc.runChain(
   "Build a REST API for a todo app",
   ["architect", "coder", "verifier"]
@@ -187,38 +210,63 @@ const result = await orc.runChain(
 | Protocol-level spec | ✅ | ❌ | ❌ | ❌ |
 | Setup time | 30 sec | Hours | Hours | Hours |
 
-## 🧪 Context Envelope (Protocol Primitive)
+## 📡 MMCP Protocol Message (v2.1)
 
-Every model invocation produces a Context Envelope:
+Every inter-agent message conforms to the [MMCP Protocol Spec](PROTOCOL_SPEC.md):
 
 ```json
 {
-  "mmcp_version": "0.1",
-  "id": "ctx_a1b2c3",
-  "parent_ids": ["ctx_root"],
-  "task": "Review the code for security issues",
-  "role": "security_auditor",
-  "model": "anthropic/claude-sonnet-4",
-  "branch_type": "fork",
-  "status": "done",
-  "output": "Found 3 potential vulnerabilities...",
-  "tokens_used": 1847,
-  "cost_usd": 0.003
+  "mmcp_version": "2.0",
+  "schema_version": "2.0",
+  "message_id": "msg_a1b2c3",
+  "trace_id": "trace_xyz789",
+  "parent_message_id": "msg_root",
+  "idempotency_key": "idem_abc",
+  "sender": "architect",
+  "receiver": "coder",
+  "task_id": "task_001",
+  "intent": "code_generation",
+  "payload": { "task": "Build REST API" },
+  "context_id": "ctx_a1b2c3",
+  "confidence": 0.95,
+  "status": "success",
+  "timestamp": "2026-03-19T00:00:00Z"
 }
 ```
+
+### v2.1 Platform Features
+
+| Module | What It Does |
+|--------|-------------|
+| 🧠 **RL Router** | UCB1 + ε-greedy exploration — learns which model is best per task |
+| ✅ **Multi-Verifier** | N critics vote via majority/unanimous/weighted consensus |
+| 🌐 **Network Mesh** | Multi-node agents across regions with 4 routing strategies |
+| 🔄 **Feedback Loop** | exec → verify → memory → router update (self-improving) |
+| 💾 **Persistence** | Checkpoint/restore for crash recovery |
+| 🔌 **HTTP Agent** | `POST /mmcp/execute` — turn any agent into an API |
+| 🔑 **Auth Layer** | API keys, 8 permission types, revocation |
+| 📏 **Benchmark** | Compare MMCP vs single-model on cost/latency/accuracy |
 
 ## 🛣️ Roadmap
 
 - [x] Core DAG schema + 5 protocol operations
-- [x] TypeScript SDK + Python SDK
+- [x] TypeScript SDK + Python CLI
 - [x] CLI with smart routing (8+ models)
 - [x] MMCP Cloud (hosted proxy with billing)
 - [x] Multi-provider: Anthropic, OpenAI, Google, Meta, DeepSeek, Mistral
-- [ ] Streaming outputs
-- [ ] Web dashboard + playground
+- [x] npm package (`npm install mmcp-core`) ✅
 - [x] PyPI package (`pip install mmcp-core`) ✅
-- [ ] Confidence scoring + auto-retry
-- [ ] MMCP Registry (share pipeline configs)
+- [x] RL-ready router (UCB1 + ε-greedy)
+- [x] Multi-verifier voting (majority/unanimous/weighted)
+- [x] MMCP Network Mesh (multi-node agents)
+- [x] Self-improving feedback loop
+- [x] Execution persistence + checkpoint/restore
+- [x] HTTP Agent Protocol + SDK
+- [x] Identity & Auth layer
+- [x] Benchmark suite
+- [x] Protocol Spec (RFC-style)
+- [ ] Real-time streaming dashboard
+- [ ] Partial DAG replay
 - [ ] Enterprise: SSO, audit export, compliance
 
 ## 🤝 Contributing

@@ -15,10 +15,22 @@ import { OpenRouterAdapter } from "./adapters/openrouter";
 import { GoogleAdapter } from "./adapters/google";
 import { MMCPRegistry } from "./registry/index";
 import { MMCPComplianceSuite } from "./compliance/suite";
+// v2.0 imports
+import { ExecutionStateMachine } from "./engine/state_machine";
+import { ContextEngine } from "./engine/context_engine";
+import { MMCPProtocol } from "./protocol/message";
+import { AgentRegistry as ExternalAgentRegistry } from "./protocol/agent";
+import { IntentAwareVerifier, BuiltinConstraints } from "./operations/verifier";
+// v2.1 imports
+import { ExecutionPersistence } from "./engine/persistence";
+import { MultiVerifier } from "./operations/verifier";
+import { HTTPAgentAdapter, HTTPAgentClient } from "./protocol/http_agent";
+import { IdentityManager } from "./auth/identity";
 
 export { fork, merge, handoff, shard, verify, forkBySkill, verifyWithSkills };
 export { createContext, buildHistory } from "./core/context";
-export { RoleBasedRouter, ConfidenceEscalatingRouter, CostOptimizedRouter } from "./routing/router";
+export { RoleBasedRouter, ConfidenceEscalatingRouter, CostOptimizedRouter, ScoredRouter } from "./routing/router";
+export type { ScoringWeights } from "./routing/router";
 export { MemoryStore } from "./store/memory";
 export { SharedContextStore } from "./store/shared";
 export type { SharedContextEntry } from "./store/shared";
@@ -38,6 +50,31 @@ export type { MMCPRegistryEntry, PipelineSchema } from "./registry/index";
 export { MMCPComplianceSuite } from "./compliance/suite";
 export type { ComplianceReport, TestResult } from "./compliance/suite";
 export * from "./core/types";
+// v2.0 exports
+export { ExecutionStateMachine } from "./engine/state_machine";
+export type { ExecutionState, StateTransition } from "./engine/state_machine";
+export { ContextEngine } from "./engine/context_engine";
+export type { TaskRecord, StepRecord } from "./engine/context_engine";
+export { MMCPProtocol } from "./protocol/message";
+export type { MMCPMessage, MessageStatus, MessageIntent } from "./protocol/message";
+export { AgentRegistry as ExternalAgentRegistry } from "./protocol/agent";
+export type { MMCPAgent } from "./protocol/agent";
+export { IntentAwareVerifier, BuiltinConstraints, MultiVerifier } from "./operations/verifier";
+export type { VerificationConstraint, VerificationResult, ConstraintResult, VotingStrategy, MultiVerifierResult } from "./operations/verifier";
+// v2.1 exports
+export { ExecutionPersistence } from "./engine/persistence";
+export type { ExecutionCheckpoint } from "./engine/persistence";
+export { HTTPAgentAdapter, HTTPAgentClient } from "./protocol/http_agent";
+export type { AgentExecuteRequest, AgentExecuteResponse, AgentHealthResponse } from "./protocol/http_agent";
+export { IdentityManager } from "./auth/identity";
+export type { Permission, APIKey, AuthResult } from "./auth/identity";
+// v2.1 final layer
+export { MMCPNetworkMesh } from "./network/mesh";
+export type { NetworkNode, RouteDecision, NetworkStats, NetworkRoutingStrategy, NodeStatus } from "./network/mesh";
+export { FeedbackLoop } from "./engine/feedback_loop";
+export type { FeedbackEntry, ImprovementMetrics } from "./engine/feedback_loop";
+export { MMCPBenchmarkSuite } from "./benchmark/suite";
+export type { BenchmarkTask, BenchmarkRun, BenchmarkReport, BenchmarkComparison, SystemSummary } from "./benchmark/suite";
 
 // ── Orchestrator Config ───────────────────────────────────────────────────────
 
@@ -50,6 +87,8 @@ export interface OrchestratorConfig {
   adapter?: AdapterType;
   adapterRegistry?: AdapterRegistry;
   observer?: MMCPObserver;
+  contextEngine?: ContextEngine;
+  agentRegistry?: ExternalAgentRegistry;
   timeoutMs?: number;
   maxRetries?: number;
   confidenceThreshold?: number;
@@ -67,10 +106,16 @@ export class MMCPOrchestrator {
   private wireFormat = new MMCPWireFormat();
   /** Shared key-value store accessible to all nodes in the pipeline. */
   readonly shared: SharedContextStore;
+  /** Structured task memory with cross-task linking (v2.0). */
+  readonly contextEngine: ContextEngine;
+  /** Registry for external agent plugins (v2.0). */
+  readonly agentRegistry: ExternalAgentRegistry;
 
   constructor(private config: OrchestratorConfig) {
     this.store = config.store ?? new MemoryStore();
     this.shared = config.shared ?? new SharedContextStore();
+    this.contextEngine = config.contextEngine ?? new ContextEngine();
+    this.agentRegistry = config.agentRegistry ?? new ExternalAgentRegistry();
     this.adapter = getAdapter(config.adapter ?? "anthropic");
     this.observer = config.observer ?? new MMCPObserver();
     this._registry = new MMCPRegistry();

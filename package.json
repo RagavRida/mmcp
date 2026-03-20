@@ -1,14 +1,15 @@
 {
-  "name": "@mmcp/core",
-  "version": "1.1.0",
-  "description": "Multiple Model Context Protocol — orchestrate AI models as a coordinated DAG",
+  "name": "mmcp-core",
+  "version": "2.1.0",
+  "description": "MMCP — Multi-Model Collaboration Pipeline. Orchestrate AI models as a DAG with RL routing, multi-verifier voting, distributed agent mesh, and self-improving feedback loops.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
     "dist/",
     "LICENSE",
     "README.md",
-    "CHANGELOG.md"
+    "CHANGELOG.md",
+    "PROTOCOL_SPEC.md"
   ],
   "author": "Raghavendra Machikatla",
   "repository": {
@@ -40,7 +41,13 @@
     "llm",
     "orchestration",
     "dag",
-    "context-protocol"
+    "context-protocol",
+    "ai-agents",
+    "multi-model",
+    "reinforcement-learning",
+    "pipeline",
+    "agent-mesh",
+    "protocol"
   ],
   "license": "MIT",
   "dependencies": {

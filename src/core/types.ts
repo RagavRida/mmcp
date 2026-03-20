@@ -1,8 +1,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// MMCP Core Types  |  Multiple Model Context Protocol v0.1
+// MMCP Core Types  |  Multiple Model Context Protocol v2.0
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const MMCP_VERSION = "1.0" as const;
+export const MMCP_VERSION = "2.0" as const;
+
+// Re-export state machine types for convenience
+export type { ExecutionState, StateTransition } from "../engine/state_machine";
 
 // ── Branch Types ─────────────────────────────────────────────────────────────
 
@@ -19,7 +22,8 @@ export type ContextStatus =
   | "running"   // model invocation in progress
   | "done"      // completed successfully
   | "failed"    // exhausted retries
-  | "skipped";  // cancelled due to upstream failure
+  | "skipped"   // cancelled due to upstream failure
+  | "verifying"; // intent-aware verification in progress
 
 export type MergeStrategy = "union" | "weighted" | "voted";
 export type ShardStrategy = "sequential" | "semantic" | "balanced";
@@ -70,6 +74,10 @@ export interface ContextEnvelope {
   completed_at?: string;
   duration_ms?: number;
   error?: string;
+
+  // State Machine (v2.0)
+  execution_state?: import("../engine/state_machine").ExecutionState;
+  state_history?: import("../engine/state_machine").StateTransition[];
 
   // Arbitrary metadata
   metadata: Record<string, unknown>;
@@ -122,7 +130,13 @@ export type MMCPEventType =
   | "mmcp.dag.started"
   | "mmcp.dag.completed"
   | "mmcp.shared.write"
-  | "mmcp.shared.read";
+  | "mmcp.shared.read"
+  // v2.0 events
+  | "mmcp.state.transition"
+  | "mmcp.protocol.message"
+  | "mmcp.task.created"
+  | "mmcp.task.completed"
+  | "mmcp.verification.result";
 
 export interface MMCPEvent {
   type: MMCPEventType;

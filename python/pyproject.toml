@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mmcp-core"
-version = "1.1.0"
-description = "Self-orchestrating multi-model AI pipeline — auto-routes tasks to Gemini, GPT, Claude, DeepSeek, Llama with smart routing, streaming, and audit trails."
+version = "2.1.0"
+description = "MMCP — Multi-Model Collaboration Pipeline CLI. Auto-routes tasks to Claude, GPT, Gemini, DeepSeek with RL routing, multi-verifier voting, and audit trails."
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.11"

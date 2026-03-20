@@ -29,7 +29,7 @@ function makeOrchestrator() {
 describe("ContextEnvelope", () => {
   it("creates a context with correct defaults", () => {
     const ctx = createContext({ task: "test", role: "architect", model: "claude" });
-    expect(ctx.mmcp_version).toBe("1.0");
+    expect(ctx.mmcp_version).toBe("2.0");
     expect(ctx.status).toBe("pending");
     expect(ctx.parent_ids).toEqual([]);
     expect(ctx.children).toEqual([]);
