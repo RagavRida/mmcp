@@ -34,20 +34,75 @@ mmcp run
 
 That's it. Type a task, MMCP picks the best model + pattern automatically.
 
-## 🧠 Smart Routing — The Right Model for Every Task
+## 🧠 Domain-Aware RL Routing — The Right Model for Every Task
 
-MMCP analyzes your task and auto-selects the optimal model from 8+ providers:
+MMCP doesn't just pick a model — it **learns per domain** which model performs best, then routes automatically. When models get updated, benchmark results feed back into the router.
 
-| Your Task | Model Selected | Why |
-|-----------|---------------|-----|
-| "Write a Python API with auth" | **Gemini 2.5 Pro** | Top-tier for coding |
-| "Debug this React component" | **GPT-4o** | Strong at code generation |
-| "Prove this calculus theorem" | **DeepSeek R1** | Best for math & reasoning |
-| "Write a blog post about AI" | **Claude Sonnet** | Excellent creative writing |
-| "Analyze market strategy" | **Claude Sonnet** | Deep reasoning & analysis |
-| "Summarize this in one line" | **Llama 4 Maverick** | Fast & free |
+| Your Task | Domain Detected | Model Selected | Domain Score |
+|-----------|----------------|---------------|-------------|
+| "Write a Python API with auth" | `code_generation` | **GPT-4o** | 0.96 |
+| "Debug this React component" | `code_review` | **Claude Sonnet** | 0.91 |
+| "Prove this calculus theorem" | `math_reasoning` | **DeepSeek R1** | 0.92 |
+| "Write a blog post about AI" | `creative_writing` | **Claude Sonnet** | 0.90 |
+| "Find SQL injection in this code" | `security` | **Claude Opus** | 0.94 |
+| "Summarize this in one line" | `summarization` | **Haiku** | 0.88 |
 
-> You don't pick the model. You describe the task. MMCP figures out the rest.
+> GPT-4o scores 96% on code but 44% on math. DeepSeek scores 92% on math but 60% on code. **MMCP knows the difference and routes accordingly.**
+
+### How Domain Routing Works
+
+```typescript
+import { DomainScoredRouter } from "mmcp-core";
+
+const router = new DomainScoredRouter(
+  ["claude-sonnet-4-20250514", "gpt-4o", "deepseek-r1"],
+  { accuracy: 0.5, latency: 0.3, cost: 0.2 },
+);
+
+// Load benchmark scores per domain
+router.loadBenchmarkResults([
+  { model: "gpt-4o",      domain: "code_generation", success_rate: 0.96, avg_latency_ms: 800,  avg_cost_usd: 0.003, sample_size: 200 },
+  { model: "gpt-4o",      domain: "math_reasoning",  success_rate: 0.44, avg_latency_ms: 3000, avg_cost_usd: 0.005, sample_size: 200 },
+  { model: "deepseek-r1", domain: "math_reasoning",  success_rate: 0.92, avg_latency_ms: 1500, avg_cost_usd: 0.001, sample_size: 200 },
+]);
+
+// Router auto-detects domain from task and picks the best model
+router.route({ task: "Write a parser", role: "coder" });
+// → gpt-4o (code_generation domain: 0.96)
+
+router.route({ task: "Prove the Riemann hypothesis", role: "reasoner" });
+// → deepseek-r1 (math_reasoning domain: 0.92)
+```
+
+### Auto-Update When Models Change
+
+```typescript
+import { BenchmarkRouterBridge, MMCPBenchmarkSuite } from "mmcp-core";
+
+const bridge = new BenchmarkRouterBridge(router, new MMCPBenchmarkSuite(), skillRegistry);
+
+// When GPT-5 drops — benchmark it and update routing automatically
+await bridge.onModelUpdated("gpt-5", async (task, model) => {
+  const result = await callLLM(task, model);
+  return { output: result.text, tokens_used: result.tokens, cost_usd: result.cost, latency_ms: result.latency };
+});
+// Router now has domain-specific scores for GPT-5
+// Skill registry updated: GPT-5 gains "reasoning" skill if math score > 70%
+```
+
+### Per-Model Domain Profile
+
+```typescript
+router.getModelProfile("gpt-4o");
+// [
+//   { domain: "code_generation",  score: 0.48, runs: 200 },  // strong
+//   { domain: "math_reasoning",   score: 0.02, runs: 200 },  // weak
+//   { domain: "creative_writing", score: 0.15, runs: 100 },  // medium
+//   ...
+// ]
+```
+
+> You don't pick the model. You describe the task. MMCP learns which model wins at which domain.
 
 ## 🏗️ How It Works
 
@@ -202,7 +257,9 @@ const result = await orc.runChain(
 | Feature | MMCP | LangChain | CrewAI | AutoGen |
 |---------|------|-----------|--------|---------|
 | Multi-model DAG | ✅ | ❌ | ❌ | ⚠️ |
-| Smart model routing | ✅ | ❌ | ❌ | ❌ |
+| **Domain-aware RL routing** | ✅ | ❌ | ❌ | ❌ |
+| **Auto-update on model release** | ✅ | ❌ | ❌ | ❌ |
+| Per-domain benchmarking | ✅ | ❌ | ❌ | ❌ |
 | 8+ providers | ✅ | ✅ | ⚠️ | ⚠️ |
 | Audit trail | ✅ Built-in | ❌ | ❌ | ❌ |
 | CLI (no code needed) | ✅ | ❌ | ❌ | ❌ |
@@ -238,10 +295,11 @@ Every inter-agent message conforms to the [MMCP Protocol Spec](PROTOCOL_SPEC.md)
 
 | Module | What It Does |
 |--------|-------------|
-| 🧠 **RL Router** | UCB1 + ε-greedy exploration — learns which model is best per task |
+| 🧠 **Domain RL Router** | Learns per-domain scores (code, math, writing, security) — routes to the best model FOR THAT domain |
+| 🔄 **Benchmark Bridge** | When models update, auto-benchmarks and feeds results into the router + skill registry |
 | ✅ **Multi-Verifier** | N critics vote via majority/unanimous/weighted consensus |
 | 🌐 **Network Mesh** | Multi-node agents across regions with 4 routing strategies |
-| 🔄 **Feedback Loop** | exec → verify → memory → router update (self-improving) |
+| 🔁 **Feedback Loop** | exec → verify → memory → router update (self-improving) |
 | 💾 **Persistence** | Checkpoint/restore for crash recovery |
 | 🔌 **HTTP Agent** | `POST /mmcp/execute` — turn any agent into an API |
 | 🔑 **Auth Layer** | API keys, 8 permission types, revocation |
@@ -265,6 +323,9 @@ Every inter-agent message conforms to the [MMCP Protocol Spec](PROTOCOL_SPEC.md)
 - [x] Identity & Auth layer
 - [x] Benchmark suite
 - [x] Protocol Spec (RFC-style)
+- [x] Domain-aware RL routing (per-domain model scoring)
+- [x] Benchmark → Router bridge (auto-update on model release)
+- [x] Skill registry auto-refresh from benchmarks
 - [ ] Real-time streaming dashboard
 - [ ] Partial DAG replay
 - [ ] Enterprise: SSO, audit export, compliance

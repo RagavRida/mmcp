@@ -1,6 +1,6 @@
 {
   "name": "mmcp-core",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "MMCP — Multi-Model Collaboration Pipeline. Orchestrate AI models as a DAG with RL routing, multi-verifier voting, distributed agent mesh, and self-improving feedback loops.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
