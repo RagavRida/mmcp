@@ -33,7 +33,9 @@ export { RoleBasedRouter, ConfidenceEscalatingRouter, CostOptimizedRouter, Score
 export type { ScoringWeights } from "./routing/router";
 export { DomainScoredRouter } from "./routing/domain_router";
 export { AgentCoordinator } from "./coordination/coordinator";
+export { SkillCoordinator } from "./coordination/skill_coordinator";
 export type { AgentRegistration, SharedMemoryEntry, HandoffPayload, HandoffResult, CoordinationEvent } from "./coordination/coordinator";
+export type { SkillOutcome } from "./coordination/skill_coordinator";
 export type { Domain, DomainScoringWeights } from "./routing/domain_router";
 export { BenchmarkRouterBridge } from "./benchmark/bridge";
 export { MemoryStore } from "./store/memory";
