@@ -252,6 +252,206 @@ const result = await orc.runChain(
 );
 ```
 
+## 🤝 Agent Coordination — Make Any Agent Collaborative
+
+> 50% of deployed AI agents operate in total isolation. They can't share context, coordinate, or hand off tasks. MMCP fixes this with 3 primitives.
+
+### Install
+
+```bash
+npm install mmcp-core
+```
+
+### 1. Register Agents (any framework — LangChain, CrewAI, AutoGen, custom)
+
+```typescript
+import { AgentCoordinator } from "mmcp-core";
+
+const coord = new AgentCoordinator();
+
+// Register your agents — just give them capabilities and a handler
+const supportAgent = coord.register({
+  name: "Support Agent",
+  capabilities: ["customer_support", "refunds", "billing"],
+  handler: async (handoff) => {
+    // handoff.messages = full conversation history
+    // handoff.context = shared memory snapshot
+    const reply = await myLLM.chat(handoff.messages);
+    return { accepted: true, agent_id: handoff.to_agent, response: reply };
+  },
+});
+
+const billingAgent = coord.register({
+  name: "Billing Expert",
+  capabilities: ["billing", "invoices", "payments"],
+  handler: async (handoff) => {
+    const reply = await billingLLM.chat(handoff.messages);
+    return { accepted: true, agent_id: handoff.to_agent, response: reply };
+  },
+});
+
+const codeAgent = coord.register({
+  name: "Code Assistant",
+  capabilities: ["code_generation", "debugging", "code_review"],
+  handler: async (handoff) => {
+    const reply = await codeLLM.chat(handoff.messages);
+    return { accepted: true, agent_id: handoff.to_agent, response: reply };
+  },
+});
+```
+
+### 2. Shared Memory — Agents Read Each Other's Context
+
+```typescript
+// Agent A writes context
+coord.write(supportAgent, "user_intent", "billing question");
+coord.write(supportAgent, "user_tier", "enterprise");
+coord.write(supportAgent, "sentiment", "frustrated");
+
+// Agent B reads it — no API calls, no DB, just shared memory
+const intent = coord.read(billingAgent, "user_intent");
+// → "billing question"
+
+const tier = coord.read(billingAgent, "user_tier");
+// → "enterprise"
+
+// TTL support — auto-expires sensitive data
+coord.write(supportAgent, "auth_token", "abc123", 60000); // expires in 60s
+```
+
+### 3. Handoff — Transfer Conversations Without Losing State
+
+```typescript
+// Support agent can't handle billing → hand off to billing expert
+const result = await coord.handoff({
+  from_agent: supportAgent,
+  to_agent: billingAgent,
+  conversation_id: "conv_123",
+  messages: [
+    { role: "user", content: "I need a refund for my last invoice" },
+    { role: "assistant", content: "Let me transfer you to our billing team.", agent: "Support Agent" },
+  ],
+  context: { invoice_id: "INV-2024-001", amount: 299.99 },
+  reason: "billing_request",
+  priority: "urgent",
+});
+
+console.log(result.response); // "I can help with your refund for INV-2024-001..."
+```
+
+The billing agent receives the **full conversation**, **shared memory snapshot**, and **custom context** — zero information lost.
+
+### 4. Auto-Discovery — Don't Know Which Agent? Let MMCP Find It
+
+```typescript
+// You don't need to know agent IDs. Describe what you need:
+const result = await coord.autoHandoff(
+  supportAgent,
+  "conv_456",
+  [{ role: "user", content: "My code has a bug" }],
+  ["debugging", "code_review"],  // required capabilities
+  "technical_issue",
+);
+
+// MMCP discovers the Code Assistant (best match for debugging + code_review)
+// and hands off automatically
+console.log(result.response); // Code Assistant's reply
+```
+
+### 5. Real-Time Events — Monitor All Coordination
+
+```typescript
+coord.on((event) => {
+  switch (event.type) {
+    case "agent:joined":
+      console.log(`${event.data.name} joined with capabilities: ${event.data.capabilities}`);
+      break;
+    case "handoff:start":
+      console.log(`Handoff: ${event.agent_id} → ${event.data.to}`);
+      break;
+    case "handoff:complete":
+      console.log(`Handoff accepted: ${event.data.accepted}`);
+      break;
+    case "memory:write":
+      console.log(`Shared memory: ${event.data.key} (v${event.data.version})`);
+      break;
+  }
+});
+```
+
+### Full Example: Customer Support System
+
+```typescript
+import { AgentCoordinator } from "mmcp-core";
+
+const coord = new AgentCoordinator();
+
+// Register specialized agents
+coord.register({ name: "Intake",   capabilities: ["intake", "classify"], handler: intakeHandler });
+coord.register({ name: "Billing",  capabilities: ["billing", "refunds"], handler: billingHandler });
+coord.register({ name: "Tech",     capabilities: ["debugging", "code"],  handler: techHandler });
+coord.register({ name: "Escalation", capabilities: ["escalation", "manager"], handler: escalationHandler });
+
+// User message comes in
+const messages = [{ role: "user", content: "My API key isn't working and I'm being charged" }];
+
+// Intake agent classifies and writes to shared memory
+coord.write(intakeAgent, "issue_type", "billing+technical");
+coord.write(intakeAgent, "urgency", "high");
+
+// Auto-discover: needs both billing AND technical
+const techResult = await coord.autoHandoff(intakeAgent, "conv_1", messages, ["debugging"], "api_issue");
+// Code agent handles the technical part
+
+// Then billing
+const billResult = await coord.autoHandoff(intakeAgent, "conv_1", messages, ["billing"], "charge_dispute");
+// Billing agent handles the charge — sees shared memory from both prior agents
+
+// If neither resolves it
+const escalation = await coord.autoHandoff(intakeAgent, "conv_1", messages, ["escalation"], "unresolved");
+// Manager agent gets full context from ALL prior agents via shared memory
+```
+
+### Use with LangChain
+
+```typescript
+import { AgentCoordinator } from "mmcp-core";
+import { ChatOpenAI } from "@langchain/openai";
+import { HumanMessage } from "@langchain/core/messages";
+
+const coord = new AgentCoordinator();
+const llm = new ChatOpenAI({ model: "gpt-4" });
+
+coord.register({
+  name: "LangChain Agent",
+  capabilities: ["qa", "summarization"],
+  handler: async (handoff) => {
+    const response = await llm.invoke(handoff.messages.map(m => new HumanMessage(m.content)));
+    return { accepted: true, agent_id: handoff.to_agent, response: response.content as string };
+  },
+});
+```
+
+### Use with CrewAI (Python → TypeScript bridge)
+
+```typescript
+// Your CrewAI agent runs as a service
+coord.register({
+  name: "CrewAI Research Agent",
+  capabilities: ["research", "web_search"],
+  handler: async (handoff) => {
+    const res = await fetch("http://localhost:8000/crewai/run", {
+      method: "POST",
+      body: JSON.stringify({ messages: handoff.messages, context: handoff.context }),
+    });
+    const data = await res.json();
+    return { accepted: true, agent_id: handoff.to_agent, response: data.result };
+  },
+});
+```
+
+---
+
 ## 🆚 Why MMCP?
 
 | Feature | MMCP | LangChain | CrewAI | AutoGen |
