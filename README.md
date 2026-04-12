@@ -544,6 +544,10 @@ Or install from PyPI to use:
 pip install mmcp-core
 ```
 
+## 📈 Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=RagavRida/mmcp&type=Date)](https://star-history.com/#RagavRida/mmcp&Date)
+
 ## 📄 License
 
 MIT — use it for anything.
