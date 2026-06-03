@@ -15,26 +15,39 @@ from dataclasses import dataclass
 from typing import Any
 
 
-# ── Well-known MCP servers ──────────────────────────────────────────────────
+# ── MCP server registry (loaded from config — not hardcoded) ────────────────
 
-MCP_SERVERS: dict[str, dict] = {
-    "filesystem": {
-        "command": "npx",
-        "args": ["-y", "@anthropic-ai/mcp-server-filesystem", os.path.expanduser("~")],
-        "description": "Read/write files, list directories",
-    },
-    "fetch": {
-        "command": "npx",
-        "args": ["-y", "@anthropic-ai/mcp-server-fetch"],
-        "description": "Fetch web pages and APIs",
-    },
-    "github": {
-        "command": "npx",
-        "args": ["-y", "@anthropic-ai/mcp-server-github"],
-        "description": "GitHub operations (requires GITHUB_TOKEN)",
-        "env": {"GITHUB_TOKEN": os.environ.get("GITHUB_TOKEN", "")},
-    },
-}
+def _get_mcp_servers() -> dict[str, dict]:
+    """Load MCP server configs from MMCPConfig."""
+    from .config import get_config
+    return get_config().mcp_servers
+
+
+# Backward-compat accessor: lazy-loaded
+class _MCPServersProxy(dict):
+    """Lazy dict that loads from config on first access."""
+    _loaded = False
+    def _ensure(self):
+        if not self._loaded:
+            self.update(_get_mcp_servers())
+            self._loaded = True
+    def __getitem__(self, key):
+        self._ensure()
+        return super().__getitem__(key)
+    def __contains__(self, key):
+        self._ensure()
+        return super().__contains__(key)
+    def items(self):
+        self._ensure()
+        return super().items()
+    def keys(self):
+        self._ensure()
+        return super().keys()
+    def get(self, key, default=None):
+        self._ensure()
+        return super().get(key, default)
+
+MCP_SERVERS = _MCPServersProxy()
 
 
 @dataclass

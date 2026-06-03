@@ -1,4 +1,4 @@
-"""Autonomous pipeline mode (v2) and skills management."""
+"""Autonomous pipeline mode (v2.2) and skills management."""
 from __future__ import annotations
 import argparse
 import asyncio
@@ -49,21 +49,47 @@ def cmd_auto(args: argparse.Namespace) -> None:
             else:
                 similar = None
 
+    # v2.2: Initialize SmartRouter + CostOptimizer
+    from ..smart_router import SmartRouter
+    from ..cost_optimizer import CostOptimizer
+
+    cost_optimizer = CostOptimizer()
+    budget = cost_optimizer.get_budget()
+    smart_router = SmartRouter(daily_budget_usd=budget)
+
     # Plan the task
     if not similar or (similar and use_skill in ("n", "no")):
         from ..planner import plan_task
 
         print(f"\n{BOLD}🧠 Planning...{RESET}", end="", flush=True)
         try:
-            plan = asyncio.run(plan_task(task, api_key=or_key))
+            plan = asyncio.run(plan_task(
+                task, api_key=or_key, smart_router=smart_router,
+            ))
             print(f" {GREEN}✓{RESET}")
         except Exception as e:
             print(f" {RED}✗{RESET}")
             print(f"{RED}Planning failed: {e}{RESET}")
             return
 
-    # Show the plan
+    # Show the plan with justifications
     print(f"\n{plan.to_display()}")
+
+    # v2.2: Show model justifications
+    for step in plan.steps:
+        if step.justification:
+            j = step.justification
+            tier_icon = {
+                "trivial": "⚡", "standard": "📊",
+                "complex": "🧠", "frontier": "🔬",
+            }.get(j.task_complexity.value, "▶️")
+            print(f"    {DIM}Step {step.step}: {tier_icon} {j.task_complexity.value.upper()} "
+                  f"({j.domain}) → {j.chosen_model.split('/')[-1]} "
+                  f"(est. ${j.estimated_cost:.4f}){RESET}")
+            if j.savings_percent > 10:
+                print(f"    {DIM}         💰 Alt: {j.alternative_model.split('/')[-1]} "
+                      f"(${j.alternative_cost:.4f}, -{j.savings_percent:.0f}% cost, "
+                      f"{j.quality_risk}){RESET}")
 
     if not auto_run:
         go = input(f"\n  {BOLD}Execute? [Y/n]:{RESET} ").strip().lower()
@@ -86,6 +112,8 @@ def cmd_auto(args: argparse.Namespace) -> None:
     result = asyncio.run(execute_plan(
         plan, api_key=or_key,
         on_step_start=on_start, on_step_done=on_done,
+        smart_router=smart_router,
+        cost_optimizer=cost_optimizer,
     ))
 
     # Results
@@ -114,6 +142,22 @@ def cmd_auto(args: argparse.Namespace) -> None:
     if final_output:
         print(f"\n{BOLD}Output:{RESET}")
         print(final_output)
+
+    # v2.2: Show cost analysis
+    budget_status = smart_router.get_budget_status()
+    if budget_status.get("budget_set"):
+        pct = budget_status.get("usage_percent", 0)
+        color = GREEN if pct < 70 else (YELLOW if pct < 90 else RED)
+        print(f"\n  {BOLD}Budget:{RESET} {color}${budget_status['spent_today_usd']:.4f}"
+              f" / ${budget_status['daily_budget_usd']:.2f} ({pct:.1f}%){RESET}")
+
+    # Show savings tips if any
+    recs = cost_optimizer.get_savings_recommendations()
+    if recs:
+        top = recs[0]
+        print(f"\n  {YELLOW}💡 Tip: {top.title}{RESET}")
+        if top.estimated_savings_usd > 0:
+            print(f"     {DIM}{top.description[:120]}{RESET}")
 
     # Save as skill?
     if result.status in ("done", "partial"):

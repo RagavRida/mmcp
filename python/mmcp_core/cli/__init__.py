@@ -9,6 +9,9 @@ Usage:
     mmcp run                                 ← interactive mode (smart routing)
     mmcp auto  "task"                        ← autonomous pipeline mode
     mmcp skills                              ← list saved pipeline skills
+    mmcp cost                                ← spend summary & savings (v2.2)
+    mmcp cost --savings                      ← cost reduction recommendations
+    mmcp cost --budget 1.0                   ← set daily budget cap
     mmcp chain   "task" --roles architect,reviewer
     mmcp parallel "task" --fork-roles coder,analyst --merge-role summarizer
     mmcp verify  "task" --producer expert --challenger critic --synthesizer judge
@@ -30,6 +33,7 @@ from .audit import cmd_audit
 from .run import cmd_run
 from .auto import cmd_auto, cmd_skills
 from .cloud import cmd_login, cmd_logout, cmd_account, cmd_setup
+from .cost import cmd_cost
 
 import os
 
@@ -138,6 +142,15 @@ def build_parser() -> argparse.ArgumentParser:
     # setup
     p_setup = sub.add_parser("setup", help="Interactive setup wizard (BYOK mode)")
     p_setup.set_defaults(func=cmd_setup)
+
+    # cost (v2.2 — expense tracking)
+    p_cost = sub.add_parser("cost", help="Spend summary, savings & budget (v2.2)")
+    p_cost.add_argument("cost_action", nargs="?", default=None,
+                        choices=["savings", "budget", "report", "mcp"],
+                        help="Subcommand: savings, budget, report, mcp")
+    p_cost.add_argument("budget_value", nargs="?", type=float, default=None,
+                        help="Budget amount in USD (for 'budget' action)")
+    p_cost.set_defaults(func=cmd_cost)
 
     # version
     p_ver_cmd = sub.add_parser("version", help="Show version info")

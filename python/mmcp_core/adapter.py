@@ -7,15 +7,35 @@ import asyncio
 import httpx
 from .types import ContextEnvelope, ModelAssignment
 
-# Model pricing table — USD per 1M tokens
-MODEL_PRICING: dict[str, dict[str, float]] = {
-    "claude-opus-4-20250514":    {"input": 15,    "output": 75},
-    "claude-sonnet-4-20250514":  {"input": 3,     "output": 15},
-    "claude-haiku-4-5-20251001": {"input": 0.25,  "output": 1.25},
-    "gpt-4o":                    {"input": 2.5,   "output": 10},
-    "gpt-4o-mini":               {"input": 0.15,  "output": 0.6},
-    "gemini-pro-1.5":            {"input": 1.25,  "output": 5},
-}
+# Model pricing — loaded from config (not hardcoded).
+# This module-level dict is a backward-compat accessor.
+# For the canonical pricing, use get_config().model_pricing.
+
+def _get_pricing() -> dict[str, dict[str, float]]:
+    from .config import get_config
+    return get_config().model_pricing
+
+# Backward compat: lazy proxy
+class _PricingProxy(dict):
+    _loaded = False
+    def _ensure(self):
+        if not self._loaded:
+            self.update(_get_pricing())
+            self._loaded = True
+    def __getitem__(self, key):
+        self._ensure()
+        return super().__getitem__(key)
+    def __contains__(self, key):
+        self._ensure()
+        return super().__contains__(key)
+    def get(self, key, default=None):
+        self._ensure()
+        return super().get(key, default)
+    def items(self):
+        self._ensure()
+        return super().items()
+
+MODEL_PRICING = _PricingProxy()
 
 
 def calculate_cost(
@@ -23,7 +43,7 @@ def calculate_cost(
     input_tokens: int,
     output_tokens: int,
 ) -> float:
-    pricing = MODEL_PRICING.get(model_id, {"input": 3, "output": 15})
+    pricing = _get_pricing().get(model_id, {"input": 3, "output": 15})
     return (
         (input_tokens / 1_000_000 * pricing["input"])
         + (output_tokens / 1_000_000 * pricing["output"])

@@ -1,0 +1,12 @@
+# Codex CLI configuration for mmcp-core MCP server
+# Place this in ~/.codex/config.toml or .codex/config.toml (project-level)
+#
+# Or run: codex mcp add mmcp-core -- python -m mmcp_mcp_server
+
+[mcp_servers.mmcp-core]
+command = "python"
+args = ["-m", "mmcp_mcp_server"]
+
+# Environment variables (set your API key)
+[mcp_servers.mmcp-core.env]
+OPENROUTER_API_KEY = "sk-or-your-key-here"

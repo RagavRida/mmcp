@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "mmcp-core": {
+      "command": "python",
+      "args": ["-m", "mmcp_mcp_server"],
+      "env": {
+        "OPENROUTER_API_KEY": "sk-or-your-key-here"
+      }
+    }
+  }
+}

@@ -3,7 +3,8 @@ MMCP Core Types — mirrors TypeScript src/core/types.ts exactly.
 Dataclasses + Literal types for full type safety.
 """
 from __future__ import annotations
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from enum import Enum
 from typing import Optional, Literal, Any
 
 MMCP_VERSION = "1.0"
@@ -111,3 +112,131 @@ class MMCPEvent:
     timestamp: str
     data: dict[str, Any]
     context_id: Optional[str] = None
+
+
+# ── Intelligence Types (v2.2) ──────────────────────────────────────────────
+
+
+class TaskComplexity(Enum):
+    """Task complexity tiers for model routing decisions."""
+    TRIVIAL = "trivial"      # Simple lookups, formatting, translation
+    STANDARD = "standard"    # Writing, summarization, basic analysis
+    COMPLEX = "complex"      # Multi-step reasoning, code generation, architecture
+    FRONTIER = "frontier"    # Research-grade reasoning, math proofs, security audits
+
+
+class ToolTier(Enum):
+    """Cost tier for tool routing decisions."""
+    BUILTIN = "builtin"       # Free, instant — always prefer
+    MCP_WARM = "mcp_warm"     # Already-connected MCP — cheap, fast
+    MCP_COLD = "mcp_cold"     # Needs new connection — expensive startup
+    LLM_TOOL = "llm_tool"    # Use a cheap LLM as a tool — token cost
+
+
+@dataclass
+class ModelJustification:
+    """Explains why a specific model was chosen for a task."""
+    task_complexity: TaskComplexity
+    chosen_model: str
+    domain: str
+    reasoning: str              # Human-readable explanation
+    estimated_cost: float       # Projected cost for this step
+    alternative_model: str      # Cheaper alternative if user wants savings
+    alternative_cost: float     # Cost with the alternative
+    savings_percent: float      # How much they'd save
+    quality_risk: str           # What they might lose
+
+
+@dataclass
+class SmartRouteDecision:
+    """Full routing decision with justification."""
+    model: str
+    endpoint: str
+    domain: str
+    complexity: TaskComplexity
+    justification: ModelJustification
+    budget_constrained: bool = False  # True if downgraded due to budget
+
+
+@dataclass
+class MCPCallMetrics:
+    """Performance metrics for a single MCP tool call."""
+    server_name: str
+    tool_name: str
+    startup_ms: int              # 0 if connection was reused
+    call_latency_ms: int
+    was_pool_hit: bool           # True if connection was reused
+    builtin_equivalent: str | None = None  # If a built-in could have done this
+
+
+@dataclass
+class ToolMatch:
+    """A tool matched to a task intent."""
+    tool_name: str
+    source: str                  # "builtin" | "mcp:server_name"
+    tier: ToolTier
+    relevance_score: float       # 0.0-1.0 how well it matches the task
+    cost_per_call: float         # Estimated cost
+    avg_latency_ms: int
+    tags: list[str] = field(default_factory=list)
+
+
+@dataclass
+class ExpenseEntry:
+    """A single entry in the expense ledger."""
+    timestamp: str
+    task_summary: str
+    entry_type: str              # "model_call" | "mcp_tool" | "builtin_tool"
+    model: str | None = None
+    mcp_server: str | None = None
+    tool_name: str | None = None
+    domain: str = "general"
+    complexity: str = "standard"
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cost_usd: float = 0.0
+    overhead_ms: int = 0
+    success: bool = True
+    latency_ms: int = 0
+    was_justified: bool = True
+    builtin_available: bool = False
+
+
+@dataclass
+class SavingsRecommendation:
+    """An actionable cost-saving recommendation."""
+    category: str               # "downgrade" | "mcp_to_builtin" | "mcp_reuse" | "cache" | "model_waste"
+    title: str
+    description: str
+    estimated_savings_usd: float
+    estimated_savings_time_ms: int
+    confidence: float           # 0.0-1.0 how confident we are in this recommendation
+    affected_count: int         # How many calls this affects
+
+
+@dataclass
+class SpendAnalysis:
+    """Aggregate spending analysis."""
+    period_days: int
+    total_cost_usd: float
+    total_calls: int
+    total_tokens: int
+    by_model: dict[str, float]         # model -> total cost
+    by_domain: dict[str, float]        # domain -> total cost
+    by_complexity: dict[str, float]    # complexity -> total cost
+    mcp_overhead_total_ms: int
+    mcp_calls_total: int
+    builtin_calls_total: int
+    top_waste: list[SavingsRecommendation] = field(default_factory=list)
+
+
+@dataclass
+class BudgetStatus:
+    """Current budget tracking status."""
+    daily_budget_usd: float
+    spent_today_usd: float
+    remaining_usd: float
+    projected_daily_usd: float
+    is_over_budget: bool
+    downgrade_active: bool     # True if models are being downgraded due to budget
+

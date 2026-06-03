@@ -1,11 +1,18 @@
 {
   "name": "mmcp-core",
   "version": "2.2.0",
-  "description": "MMCP — Multi-Model Collaboration Pipeline. Orchestrate AI models as a DAG with RL routing, multi-verifier voting, distributed agent mesh, and self-improving feedback loops.",
+  "description": "MMCP — Multi-Model Context Protocol. Intelligent AI model routing with MCP server for Claude Desktop & Codex CLI. Auto-routes tasks to Claude, GPT, Gemini, DeepSeek, Llama with RL-based smart routing and cost optimization.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "bin": {
+    "mmcp-core": "./bin/mmcp-mcp-server.js"
+  },
   "files": [
     "dist/",
+    "bin/",
+    "python/mmcp_core/",
+    "python/mmcp_mcp_server/",
+    "python/pyproject.toml",
     "LICENSE",
     "README.md",
     "CHANGELOG.md",
@@ -47,10 +54,31 @@
     "reinforcement-learning",
     "pipeline",
     "agent-mesh",
-    "protocol"
+    "protocol",
+    "model-routing",
+    "ai-orchestration",
+    "langchain-alternative",
+    "crewai-alternative",
+    "autogen-alternative",
+    "mcp",
+    "mcp-server",
+    "model-context-protocol",
+    "claude-desktop",
+    "codex",
+    "cursor",
+    "claude-code",
+    "windsurf",
+    "copilot",
+    "ai-ide",
+    "openai",
+    "anthropic",
+    "gemini",
+    "smart-routing",
+    "cost-optimization"
   ],
   "license": "MIT",
   "dependencies": {
+    "mmcp-seo-geo-skill": "^1.0.0",
     "uuid": "^9.0.0"
   },
   "devDependencies": {
