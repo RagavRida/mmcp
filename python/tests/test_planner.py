@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import pytest
 from mmcp_core.planner import (
-    ExecutionPlan, PlanStep, ACTION_TO_MODEL, FALLBACK_MODEL, plan_task,
+    ExecutionPlan, PlanStep, _get_action_to_model, _get_fallback_model, plan_task,
 )
 
 
@@ -30,7 +30,7 @@ class TestModelRouting:
     def test_resolve_model_fallback_for_unknown_action(self):
         """Unknown action types fall back to FALLBACK_MODEL."""
         step = PlanStep(step=1, action="unknown_action", description="test")
-        assert step.resolve_model() == FALLBACK_MODEL
+        assert step.resolve_model() == _get_fallback_model()
 
     def test_tool_action_resolves_to_none(self):
         """Tool actions don't need a model."""
@@ -38,11 +38,11 @@ class TestModelRouting:
         assert step.resolve_model() is None
 
     def test_all_action_types_in_map(self):
-        """Verify all documented action types exist in ACTION_TO_MODEL."""
+        """Verify all documented action types exist in action_to_model."""
         expected = {"research", "analyze", "code", "generate", "write",
                     "review", "summarize", "translate", "quick", "math",
                     "creative", "tool", "mcp"}
-        assert expected == set(ACTION_TO_MODEL.keys())
+        assert expected == set(_get_action_to_model().keys())
 
 
 # ── Plan structure ──────────────────────────────────────────────────────────
@@ -52,7 +52,7 @@ class TestPlanStructure:
         """PlanStep has correct defaults for error recovery."""
         step = PlanStep(step=1, action="write", description="test")
         assert step.retry_count == 2
-        assert step.fallback_model == FALLBACK_MODEL
+        assert step.fallback_model is None
         assert step.status == "pending"
         assert step.depends_on == []
 
