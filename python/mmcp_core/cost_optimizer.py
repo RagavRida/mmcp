@@ -9,11 +9,10 @@ Nothing is hardcoded.
 """
 from __future__ import annotations
 import json
-import time
 from collections import defaultdict
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
-from dataclasses import dataclass, asdict
+from dataclasses import asdict
 from typing import Any
 
 from .types import (
@@ -551,11 +550,11 @@ class CostOptimizer:
         """Format a spend analysis for terminal display."""
         lines = [
             f"📊 Spend Summary ({analysis.period_days} days)",
-            f"",
+            "",
             f"  Total Cost:    ${analysis.total_cost_usd:.4f}",
             f"  Total Calls:   {analysis.total_calls:,}",
             f"  Total Tokens:  {analysis.total_tokens:,}",
-            f"",
+            "",
         ]
 
         if analysis.by_model:
@@ -565,15 +564,15 @@ class CostOptimizer:
 
         if analysis.mcp_calls_total > 0:
             lines.extend([
-                f"",
+                "",
                 f"  MCP Overhead:  {analysis.mcp_overhead_total_ms:,}ms ({analysis.mcp_calls_total} calls)",
                 f"  Built-in:      {analysis.builtin_calls_total} calls (free)",
             ])
 
         if analysis.top_waste:
             lines.extend([
-                f"",
-                f"  💡 Top Savings Opportunities:",
+                "",
+                "  💡 Top Savings Opportunities:",
             ])
             for rec in analysis.top_waste[:3]:
                 if rec.estimated_savings_usd > 0:

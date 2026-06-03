@@ -15,13 +15,13 @@ Nothing is hardcoded — override via config file or programmatic API.
 from __future__ import annotations
 import math
 import random
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 from .types import (
     TaskComplexity, ModelJustification, SmartRouteDecision,
 )
-from .complexity_analyzer import analyze_complexity, detect_domain
+from .complexity_analyzer import analyze_complexity
 
 
 # ── Domain Statistics (for RL learning) ─────────────────────────────────────
@@ -149,7 +149,6 @@ class SmartRouter:
             chosen, reason = self._rl_select(candidates, detected_domain)
         else:
             chosen = candidates[0] if candidates else cfg.default_model
-            reason = "default (cold start)"
 
         # 6. Budget constraint: downgrade if too expensive
         if effective_budget is not None:
@@ -159,7 +158,6 @@ class SmartRouter:
                 if cheaper != chosen:
                     chosen = cheaper
                     budget_constrained = True
-                    reason = "budget-downgraded"
 
         # 7. Build justification
         justification = self._build_justification(

@@ -26,12 +26,10 @@ Usage:
 """
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 import os
 import sys
-from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
@@ -567,9 +565,9 @@ def get_pricing_resource() -> str:
 def main():
     """Run the MMCP MCP server over stdio."""
     logger.info("Starting mmcp-core MCP server v2.2.0")
-    logger.info(f"Tools: analyze_task, plan_task, execute_task, select_tools_for_task, "
-                f"cost_summary, cost_savings, set_budget, model_value_report, "
-                f"list_skills, configure")
+    logger.info("Tools: analyze_task, plan_task, execute_task, select_tools_for_task, "
+                "cost_summary, cost_savings, set_budget, model_value_report, "
+                "list_skills, configure")
     mcp.run(transport="stdio")
 
 
